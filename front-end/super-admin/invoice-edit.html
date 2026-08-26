@@ -1,7 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
+  <script src="scripts/csrf-interceptor.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Change invoice | LexFlow Super Admin</title>
@@ -53,7 +54,7 @@
             <div style="display:flex; justify-content:space-between; align-items:flex-end;">
                 <h1 id="page-title">Change invoice: Loading...</h1>
                 <ul class="object-tools">
-                    <li><a href="invoice-list.html" class="addlink-btn" style="background:var(--primary-dark);">← Back
+                    <li><a href="invoice-list.html" class="addlink-btn" style="background:var(--primary-dark);">â† Back
                             to list</a></li>
                 </ul>
             </div>
@@ -62,7 +63,7 @@
             <div id="inv-loading" style="padding:24px; color:var(--text-muted);">Loading invoice data...</div>
             <div id="inv-error" style="padding:24px; color:#ef4444; display:none;"></div>
 
-            <!-- Form — hidden until data loads -->
+            <!-- Form â€” hidden until data loads -->
             <form action="" method="post" id="firm_form" style="display:none;">
 
                 <div class="form-horizontal">

@@ -1,10 +1,11 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
+  <script src="scripts/csrf-interceptor.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>LexFlow – Law Firm Billing</title>
+    <title>LexFlow â€“ Law Firm Billing</title>
     <link rel="stylesheet" href="../styles/firm-cases.css">
     <link rel="stylesheet" href="../styles/firm-billing.css">
     <link rel="stylesheet" href="../styles/sidebar.css">
@@ -157,7 +158,7 @@
 
                     <div class="form-row" style="display: flex; gap: 12px; margin-top: 12px;">
                         <div class="form-group" style="flex: 1;">
-                            <label class="form-label">Amount (₹)</label>
+                            <label class="form-label">Amount (â‚¹)</label>
                             <input type="number" class="form-input" id="createInvAmount" step="0.01" min="1"
                                 placeholder="0.00" required>
                         </div>
@@ -210,7 +211,7 @@
 
                     <div class="form-row" style="display: flex; gap: 12px; margin-top: 12px;">
                         <div class="form-group" style="flex: 1;">
-                            <label class="form-label">Amount (₹)</label>
+                            <label class="form-label">Amount (â‚¹)</label>
                             <input type="number" class="form-input" id="editInvAmount" step="0.01" min="1" required>
                         </div>
                         <div class="form-group" style="flex: 1;">
@@ -292,7 +293,7 @@
     <script src="../scripts/storage-service.js"></script>
     <script src="../scripts/auth.js"></script>
     <script>
-        // RBAC: Only firmAdmin and lawyer can access billing — interns are blocked
+        // RBAC: Only firmAdmin and lawyer can access billing â€” interns are blocked
         const currentUser = AuthService.requireAuth(['firmAdmin', 'firmadmin', 'lawyer']);
         if (!currentUser) {
             // requireAuth already redirects to sign-in, but stop script execution

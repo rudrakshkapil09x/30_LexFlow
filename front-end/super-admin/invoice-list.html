@@ -1,7 +1,8 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 
 <head>
+  <script src="scripts/csrf-interceptor.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Select invoice to change | LexFlow Super Admin</title>
@@ -63,7 +64,7 @@
                         <label>Action:
                             <select name="action" id="action-select-dropdown">
                                 <option value="" selected>---------</option>
-                                <option value="payout_selected">Mark payout as complete (→ Paid)</option>
+                                <option value="payout_selected">Mark payout as complete (â†’ Paid)</option>
                                 <option value="refund_selected">Mark as Overdue (issue refund)</option>
                             </select>
                         </label>

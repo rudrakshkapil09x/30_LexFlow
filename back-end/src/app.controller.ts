@@ -1,4 +1,5 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Res } from '@nestjs/common';
+import { Response } from 'express';
 
 @Controller()
 export class AppController {
@@ -8,5 +9,19 @@ export class AppController {
       message: 'LexFlow Backend Running',
       status: 'OK',
     };
+  }
+
+  /**
+   * GET /api/csrf-token
+   * Returns the current CSRF token (set in cookie by SecurityMiddleware).
+   * Frontend calls this on page load to obtain the token for subsequent
+   * mutating requests (POST / PUT / PATCH / DELETE).
+   */
+  @Get('api/csrf-token')
+  getCsrfToken(@Res() res: Response) {
+    return res.status(200).json({
+      success: true,
+      csrfToken: (res.locals.csrfToken as string) ?? null,
+    });
   }
 }

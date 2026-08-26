@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
+  <script src="scripts/csrf-interceptor.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LexFlow — Firm Consultations Dashboard</title>
+    <title>LexFlow â€” Firm Consultations Dashboard</title>
     <meta name="description" content="Manage incoming consultation requests, assign lawyers, and track active consultations for your law firm on LexFlow.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,6 +21,7 @@
 
         <!-- HEADER -->
         <header class="page-header" id="page-header">
+  <script src="scripts/csrf-interceptor.js"></script>
             <div class="header-text">
                 <h1>Consultations</h1>
                 <p>Manage incoming requests, assign lawyers, and track active consultations.</p>
@@ -117,7 +119,7 @@
     <script src="../scripts/api.js"></script>
     <script src="../scripts/firm-consultation-dashboard.js"></script>
     <style>
-      /* ── API Loading & Error UI Utilities ── */
+      /* â”€â”€ API Loading & Error UI Utilities â”€â”€ */
       .api-loading-block { display:flex; flex-direction:column; align-items:center; justify-content:center;
         padding:48px 20px; background:#f9fafb; border-radius:12px; grid-column:1/-1; }
       .api-loading-block p { color:#6b7280; font-size:13px; margin-top:10px; }

@@ -15,6 +15,20 @@
         ]
       }
     },
+    "/api/csrf-token": {
+      "get": {
+        "operationId": "AppController_getCsrfToken",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "App"
+        ]
+      }
+    },
     "/users/firm/{firmId}": {
       "get": {
         "description": "Retrieve all users belonging to a specific firm",
@@ -2397,7 +2411,7 @@
   },
   "info": {
     "title": "LexFlow API",
-    "description": "REST API for the LexFlow Legal Platform.\n\n**RBAC:** Pass `role` in the request header to identify the caller.\nAccepted values: `client` | `lawyer` | `intern` | `firmadmin` | `superadmin`",
+    "description": "REST API for the LexFlow Legal Platform.\n\n**RBAC:** Pass `role` in the request header to identify the caller.\nAccepted values: `client` | `lawyer` | `intern` | `firmadmin` | `superadmin`\n\n**CSRF:** Fetch a token from `GET /api/csrf-token` and include it as `X-CSRF-Token` header on all mutating requests.",
     "version": "1.0",
     "contact": {}
   },

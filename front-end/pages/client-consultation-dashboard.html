@@ -1,9 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
+  <script src="scripts/csrf-interceptor.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>LexFlow — Consultations Dashboard</title>
+    <title>LexFlow â€” Consultations Dashboard</title>
     <meta name="description" content="Manage your upcoming and past legal consultations on LexFlow, the unified digital platform for legal consultation and law firm ERP.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -20,6 +21,7 @@
 
         <!-- HEADER -->
         <header class="page-header" id="page-header">
+  <script src="scripts/csrf-interceptor.js"></script>
             <div class="header-text">
                 <h1>Consultations Dashboard</h1>
                 <p>Manage your upcoming and past legal consultations.</p>
@@ -367,15 +369,15 @@
                 </button>
             </div>
             <div class="details-grid">
-                <div class="det-field"><span class="det-label">Lawyer / Advocate</span><span class="det-value" id="det-lawyer">—</span></div>
-                <div class="det-field"><span class="det-label">Law Firm</span><span class="det-value" id="det-firm">—</span></div>
-                <div class="det-field"><span class="det-label">Consultation Type</span><span class="det-value" id="det-type">—</span></div>
-                <div class="det-field"><span class="det-label">Consultation Fee</span><span class="det-value" id="det-fee">—</span></div>
-                <div class="det-field"><span class="det-label">Date</span><span class="det-value" id="det-date">—</span></div>
-                <div class="det-field"><span class="det-label">Time Slot</span><span class="det-value" id="det-time">—</span></div>
-                <div class="det-field det-field-full"><span class="det-label">Status</span><span class="det-value" id="det-status">—</span></div>
-                <div class="det-field det-field-full"><span class="det-label">Case Description</span><p class="det-desc-text" id="det-desc">—</p></div>
-                <div class="det-field det-field-full" id="det-notes-row" style="display:none"><span class="det-label">Lawyer Notes</span><p class="det-desc-text" id="det-notes">—</p></div>
+                <div class="det-field"><span class="det-label">Lawyer / Advocate</span><span class="det-value" id="det-lawyer">â€”</span></div>
+                <div class="det-field"><span class="det-label">Law Firm</span><span class="det-value" id="det-firm">â€”</span></div>
+                <div class="det-field"><span class="det-label">Consultation Type</span><span class="det-value" id="det-type">â€”</span></div>
+                <div class="det-field"><span class="det-label">Consultation Fee</span><span class="det-value" id="det-fee">â€”</span></div>
+                <div class="det-field"><span class="det-label">Date</span><span class="det-value" id="det-date">â€”</span></div>
+                <div class="det-field"><span class="det-label">Time Slot</span><span class="det-value" id="det-time">â€”</span></div>
+                <div class="det-field det-field-full"><span class="det-label">Status</span><span class="det-value" id="det-status">â€”</span></div>
+                <div class="det-field det-field-full"><span class="det-label">Case Description</span><p class="det-desc-text" id="det-desc">â€”</p></div>
+                <div class="det-field det-field-full" id="det-notes-row" style="display:none"><span class="det-label">Lawyer Notes</span><p class="det-desc-text" id="det-notes">â€”</p></div>
             </div>
             <div class="details-panel-footer">
                 <button class="btn btn-outline" id="det-close-footer-btn">Close</button>
@@ -410,7 +412,7 @@
     <script src="../scripts/api.js"></script>
     <script src="../scripts/client-consultation-dashboard.js"></script>
     <style>
-      /* ── API Loading & Error UI Utilities ── */
+      /* â”€â”€ API Loading & Error UI Utilities â”€â”€ */
       .api-loading-block { display:flex; flex-direction:column; align-items:center; justify-content:center;
         padding:48px 20px; background:#f9fafb; border-radius:12px; grid-column:1/-1; }
       .api-loading-block p { color:#6b7280; font-size:13px; margin-top:10px; }
