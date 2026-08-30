@@ -163,7 +163,7 @@ function renderCaseCard(c) {
               <div style="font-size:10px; font-weight:700; color:#9ca3af; text-transform:uppercase; margin-bottom:4px;">FILED DATE</div>
               <div style="font-size:14px; font-weight:600; color:#3b5bdb;">${filed}</div>
           </div>
-          <a class="view-details" href="lawyer-case-details.html?id=${c.id}">View Details &rarr;</a>
+          <a class="view-details" href="lawyer-case-details.html?id=${c.id}" onclick="event.stopPropagation()">View Details &rarr;</a>
       </div>
     </div>`;
 }

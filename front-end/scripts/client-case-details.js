@@ -106,12 +106,9 @@ async function initCaseDetails() {
         if (currentUser.id) filters.clientId = currentUser.id;
         const all = await casesAPI.getAll(filters, currentUser.role);
         if (idFromUrl) {
-          currentCase = all.find(c => String(c.id) === String(idFromUrl));
+          currentCase = all.find(c => String(c.id) === String(idFromUrl) || String(c.cnr) === String(idFromUrl));
         } else if (cnrFromUrl) {
-          currentCase = all.find(c => String(c.cnr) === String(cnrFromUrl));
-        }
-        if (!currentCase && !idFromUrl && !cnrFromUrl && all.length > 0) {
-          currentCase = all[0];
+          currentCase = all.find(c => String(c.cnr) === String(cnrFromUrl) || String(c.id) === String(cnrFromUrl));
         }
       }
     } else if (window.LexFlowCasesStorage) {
@@ -123,7 +120,11 @@ async function initCaseDetails() {
     }
 
     if (!currentCase) {
-      console.error("Case not found");
+      console.warn("Case not found on backend:", { idFromUrl, cnrFromUrl });
+      const titleEl = document.getElementById("caseTopTitle");
+      if (titleEl) titleEl.textContent = "Case Not Found";
+      const subEl = document.getElementById("caseTopSub");
+      if (subEl) subEl.innerHTML = `Case identifier <strong>${idFromUrl || cnrFromUrl || 'unknown'}</strong> could not be located. <a href="client-cases.html" style="color:#3b5bdb; text-decoration:underline;">Return to Cases</a>`;
       return;
     }
 

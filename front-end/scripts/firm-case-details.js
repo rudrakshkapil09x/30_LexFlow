@@ -24,37 +24,76 @@ const caseTopTitle = document.getElementById("caseTopTitle"),
   documentsTbody = document.getElementById("documentsTbody");
 async function initCaseDetails() {
   try {
-    const cnrFromUrl = new URLSearchParams(window.location.search).get("cnr");
-    const idFromUrl = new URLSearchParams(window.location.search).get("id");
+    const urlParams = new URLSearchParams(window.location.search);
+    let cnrFromUrl = urlParams.get("cnr");
+    let idFromUrl = urlParams.get("id");
     
-    if (idFromUrl) {
-      currentCase = await casesStorage.getCaseById(idFromUrl);
-      // Fallback: if id field is missing or not matched, search from full list
-      if (!currentCase || currentCase.id === undefined) {
-        const allCases = await casesStorage.getCases();
-        currentCase = allCases.find(c => String(c.id) === String(idFromUrl)) || currentCase;
+    // If no URL parameter, check if a newly created case ID is in session
+    if (!idFromUrl && !cnrFromUrl) {
+      const sessionCaseId = sessionStorage.getItem('last_created_case_id');
+      if (sessionCaseId) {
+        idFromUrl = sessionCaseId;
       }
-    } else if (cnrFromUrl) {
-      currentCase = await casesStorage.getCaseByCnr(cnrFromUrl);
     }
 
-    // Secondary fallback: if direct query fails, fetch all cases and find match
-    if (!currentCase) {
-      const allCases = await casesStorage.getCases();
-      if (allCases && allCases.length > 0) {
-        let matchedCase = null;
-        if (idFromUrl) matchedCase = allCases.find(c => String(c.id) === String(idFromUrl));
-        if (!matchedCase && cnrFromUrl) matchedCase = allCases.find(c => String(c.cnr) === String(cnrFromUrl));
-        
-        if (!matchedCase && !idFromUrl && !cnrFromUrl) matchedCase = allCases[0];
-        
-        currentCase = matchedCase || currentCase;
+    const user = (casesStorage && casesStorage.getCurrentUser()) || JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const role = (user.role || 'firmadmin').toLowerCase();
+
+    // 1. Fetch by direct ID
+    if (idFromUrl) {
+      try {
+        if (window.LexFlowAPI && window.LexFlowAPI.cases) {
+          currentCase = await window.LexFlowAPI.cases.getById(idFromUrl, role);
+        }
+      } catch (err) {
+        console.warn("LexFlowAPI.cases.getById failed:", err);
+      }
+      if (!currentCase && casesStorage) {
+        try {
+          currentCase = await casesStorage.getCaseById(idFromUrl);
+        } catch (err) {
+          console.warn("casesStorage.getCaseById failed:", err);
+        }
+      }
+    } else if (cnrFromUrl) {
+      try {
+        if (window.LexFlowAPI && window.LexFlowAPI.cases) {
+          currentCase = await window.LexFlowAPI.cases.getById(cnrFromUrl, role);
+        }
+      } catch (e) {}
+      if (!currentCase && casesStorage) {
+        currentCase = await casesStorage.getCaseByCnr(cnrFromUrl);
+      }
+    }
+
+    // 2. Fallback: Search all cases without restrictive filters
+    if (!currentCase && (idFromUrl || cnrFromUrl)) {
+      try {
+        let allCases = [];
+        if (window.LexFlowAPI && window.LexFlowAPI.cases) {
+          allCases = (await window.LexFlowAPI.cases.getAll({}, role)) || [];
+        } else if (casesStorage) {
+          allCases = (await casesStorage.getCases()) || [];
+        }
+
+        if (Array.isArray(allCases) && allCases.length > 0) {
+          if (idFromUrl) {
+            currentCase = allCases.find(c => String(c.id) === String(idFromUrl) || String(c.cnr) === String(idFromUrl));
+          } else if (cnrFromUrl) {
+            currentCase = allCases.find(c => String(c.cnr) === String(cnrFromUrl) || String(c.id) === String(cnrFromUrl));
+          }
+        }
+      } catch (e) {
+        console.warn("Fallback case lookup failed:", e);
       }
     }
 
     if (!currentCase) { 
-      console.warn("No case found, redirecting to firm-cases.html");
-      window.location.href = 'firm-cases.html'; 
+      console.warn("No matching case found on backend:", { idFromUrl, cnrFromUrl });
+      const titleEl = document.getElementById("caseTopTitle");
+      if (titleEl) titleEl.textContent = "Case Not Found";
+      const subEl = document.getElementById("caseTopSub");
+      if (subEl) subEl.innerHTML = `Case identifier <strong>${idFromUrl || cnrFromUrl || 'unknown'}</strong> could not be located. <a href="firm-cases.html" style="color:#3b5bdb; text-decoration:underline;">Return to Cases</a>`;
       return; 
     }
 
@@ -69,9 +108,7 @@ async function initCaseDetails() {
       ? (await casesStorage.getTasks({ caseId: resolvedCaseId })) || []
       : [];
 
-    const user = casesStorage.getCurrentUser();
     const firmId = user?.firmId || null;
-    const role = (user?.role || 'firmadmin').toLowerCase();
 
     // Fetch users (lawyers) specifically for this firm
     let users = [];
@@ -155,7 +192,9 @@ async function initCaseDetails() {
 }
 function formatDate(e) {
   if (!e) return "";
-  return new Date(e).toLocaleDateString(void 0, {
+  const d = new Date(e);
+  if (isNaN(d.getTime())) return String(e);
+  return d.toLocaleDateString(void 0, {
     year: "numeric",
     month: "short",
     day: "numeric",

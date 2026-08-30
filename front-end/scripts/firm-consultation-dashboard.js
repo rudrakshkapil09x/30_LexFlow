@@ -341,8 +341,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
       };
 
-      await LexFlowAPI.cases.create(caseDto, userRole);
+      const created = await LexFlowAPI.cases.create(caseDto, userRole);
       
+      if (created && created.id) {
+        sessionStorage.setItem('last_created_case_id', String(created.id));
+      } else {
+        sessionStorage.setItem('last_created_case_id', String(caseDto.cnr));
+      }
+
       // Update consultation status to COMPLETED to indicate it's done
       await LexFlowAPI.consultations.update(consId, { status: 'COMPLETED' }, userRole);
 

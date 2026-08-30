@@ -72,7 +72,11 @@ async function initCaseDetails() {
     }
 
     if (!currentCase) {
-      console.error("Case not found");
+      console.warn("Case not found on backend:", { caseId, caseCnr });
+      const titleEl = document.getElementById("caseTopTitle");
+      if (titleEl) titleEl.textContent = "Case Not Found";
+      const subEl = document.getElementById("caseTopSub");
+      if (subEl) subEl.innerHTML = `Case identifier <strong>${caseId || caseCnr || 'unknown'}</strong> could not be located. <a href="lawyer-cases.html" style="color:#3b5bdb; text-decoration:underline;">Return to Cases</a>`;
       return;
     }
 

@@ -31,18 +31,18 @@ export class CasesController {
   @Get(':id')
   @ApiOperation({ summary: 'Get a case by ID' })
   findOne(@Param('id') id: string) {
-    return this.casesService.findOne(+id);
+    return this.casesService.findOne(id);
   }
 
   @Patch(':id')
   @ApiOperation({ summary: 'Update a case' })
   update(@Param('id') id: string, @Body() updateCaseDto: UpdateCaseDto) {
-    return this.casesService.update(+id, updateCaseDto);
+    return this.casesService.update(id, updateCaseDto);
   }
 
   @Delete(':id')
   @ApiOperation({ summary: 'Delete a case' })
   remove(@Param('id') id: string) {
-    return this.casesService.remove(+id);
+    return this.casesService.remove(id);
   }
 }

@@ -106,15 +106,21 @@ export class CasesService {
 
   findOne(id: any): Case {
     const numericId = Number(id);
-    const found = this.cases.find(c => Number(c.id) === numericId);
-    if (!found) throw new NotFoundException(`Case with ID ${id} not found`);
+    const found = this.cases.find(c => {
+      if (!isNaN(numericId) && Number(c.id) === numericId) return true;
+      return String(c.id) === String(id) || String(c.cnr) === String(id);
+    });
+    if (!found) throw new NotFoundException(`Case with ID or CNR ${id} not found`);
     return found;
   }
 
   update(id: any, updateCaseDto: UpdateCaseDto): Case {
     const numericId = Number(id);
-    const caseIndex = this.cases.findIndex(c => Number(c.id) === numericId);
-    if (caseIndex === -1) throw new NotFoundException(`Case with ID ${id} not found`);
+    const caseIndex = this.cases.findIndex(c => {
+      if (!isNaN(numericId) && Number(c.id) === numericId) return true;
+      return String(c.id) === String(id) || String(c.cnr) === String(id);
+    });
+    if (caseIndex === -1) throw new NotFoundException(`Case with ID or CNR ${id} not found`);
 
     this.cases[caseIndex] = {
       ...this.cases[caseIndex],
@@ -123,10 +129,15 @@ export class CasesService {
     return this.cases[caseIndex];
   }
 
-  remove(id: any): void {
+  remove(id: any): { success: boolean; message: string } {
     const numericId = Number(id);
-    const caseIndex = this.cases.findIndex(c => Number(c.id) === numericId);
-    if (caseIndex === -1) throw new NotFoundException(`Case with ID ${id} not found`);
+    const caseIndex = this.cases.findIndex(c => {
+      if (!isNaN(numericId) && Number(c.id) === numericId) return true;
+      return String(c.id) === String(id) || String(c.cnr) === String(id);
+    });
+    if (caseIndex === -1) throw new NotFoundException(`Case with ID or CNR ${id} not found`);
+
     this.cases.splice(caseIndex, 1);
+    return { success: true, message: `Case with ID ${id} deleted` };
   }
 }

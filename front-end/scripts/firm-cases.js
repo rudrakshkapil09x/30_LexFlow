@@ -140,7 +140,7 @@ function renderCaseCard(e) {
                   ${nextHearing}
               </div>
           </div>
-          <a class="view-details" href="firm-case-details.html?id=${e.id}">View Details →</a>
+          <a class="view-details" href="firm-case-details.html?id=${e.id}" onclick="event.stopPropagation()">View Details →</a>
       </div>
     </div>`;
 }
