@@ -13,11 +13,26 @@ const LexFlowAPI = (() => {
 
   const BASE_URL = 'http://localhost:3000';
 
+  let cachedCsrfToken = null;
+
+  async function fetchCsrfToken() {
+    try {
+      const res = await fetch(`${BASE_URL}/api/csrf-token`, { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        cachedCsrfToken = data.csrfToken || data.token || null;
+      }
+    } catch (e) {
+      console.warn('Could not fetch CSRF token', e);
+    }
+    return cachedCsrfToken;
+  }
+
   /**
    * Core fetch wrapper — injects role + content-type headers,
    * throws a structured error on non-2xx responses.
    */
-  async function request(method, path, { body, role, extraHeaders = {} } = {}) {
+  async function request(method, path, { body, role, extraHeaders = {}, isRetry = false } = {}) {
     const headers = {
       'Content-Type': 'application/json',
       ...extraHeaders,
@@ -25,10 +40,36 @@ const LexFlowAPI = (() => {
 
     if (role) headers['role'] = role;
 
-    const opts = { method, headers };
-    if (body !== undefined) opts.body = JSON.stringify(body);
+    const isMutating = method.toUpperCase() !== 'GET' && method.toUpperCase() !== 'HEAD';
+    if (isMutating) {
+      if (!cachedCsrfToken) {
+        await fetchCsrfToken();
+      }
+      if (cachedCsrfToken) {
+        headers['x-csrf-token'] = cachedCsrfToken;
+      }
+    }
 
-    const res = await fetch(`${BASE_URL}${path}`, opts);
+    // If body is FormData, do NOT stringify and do NOT set Content-Type
+    // The browser will automatically set Content-Type with the correct boundary
+    const opts = { method, headers, credentials: 'include' };
+    if (body !== undefined) {
+      if (body instanceof FormData) {
+        opts.body = body;
+        delete headers['Content-Type'];
+      } else {
+        opts.body = JSON.stringify(body);
+      }
+    }
+
+    let res = await fetch(`${BASE_URL}${path}`, opts);
+
+    // If CSRF token expired or invalid, fetch a new one and retry once
+    if (res.status === 403 && isMutating && !isRetry) {
+      cachedCsrfToken = null;
+      await fetchCsrfToken();
+      return request(method, path, { body, role, extraHeaders, isRetry: true });
+    }
 
     // Parse body (may be empty for 204)
     let data = null;
@@ -254,7 +295,15 @@ const LexFlowAPI = (() => {
   };
 
   // Public interface
-  return { auth, consultations, users, cases, tasks, lawFirms, getCurrentUser, getRole, BASE_URL };
+  return { 
+    auth, consultations, users, cases, tasks, lawFirms, 
+    getCurrentUser, getRole, BASE_URL,
+    getCsrfToken: async () => {
+      if (!cachedCsrfToken) await fetchCsrfToken();
+      return cachedCsrfToken;
+    },
+    fetchCsrfToken
+  };
 
 })();
 

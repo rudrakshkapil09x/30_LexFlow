@@ -17,29 +17,60 @@
   }
 
   function getHeaders(extra = {}) {
-
     const user = getCurrentUser();
+    const userRole = (user.role || window.LEXFLOW_ROLE || "firmadmin").toLowerCase();
 
     return {
       "Content-Type": "application/json",
-      role: window.LEXFLOW_ROLE || "CLIENT",
+      role: userRole,
       "x-user-id": user.id || "",
       "x-user-name": user.fullName || user.name || "",
       ...extra,
     };
   }
 
+  let _cachedCsrfToken = null;
+
+  async function getCsrfToken() {
+    if (window.LexFlowAPI && window.LexFlowAPI.getCsrfToken) {
+      try {
+        const t = await window.LexFlowAPI.getCsrfToken();
+        if (t) return t;
+      } catch {}
+    }
+    if (_cachedCsrfToken) return _cachedCsrfToken;
+    try {
+      const res = await fetch(`${BASE}/api/csrf-token`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        _cachedCsrfToken = data.csrfToken || data.token;
+        return _cachedCsrfToken;
+      }
+    } catch (e) {
+      console.warn("[billing-storage] Failed to fetch CSRF token:", e);
+    }
+    return null;
+  }
+
   async function apiFetch(path, options = {}) {
+    const headers = getHeaders(options.headers || {});
+    
+    // Inject CSRF token for mutating requests
+    const method = (options.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') {
+      const token = await getCsrfToken();
+      if (token) headers['x-csrf-token'] = token;
+    }
 
     const res = await fetch(`${BASE}${path}`, {
+      credentials: 'include',
       ...options,
-      headers: getHeaders(options.headers || {}),
+      headers,
     });
 
     const json = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-
       const msg =
         json?.message ||
         (Array.isArray(json?.errors) ? json.errors.join(", ") : null) ||

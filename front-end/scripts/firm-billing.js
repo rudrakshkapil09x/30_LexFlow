@@ -41,8 +41,32 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
+  let _cachedCsrfToken = null;
+
+  async function getCsrfToken() {
+    if (window.LexFlowAPI && window.LexFlowAPI.getCsrfToken) {
+      try {
+        const t = await window.LexFlowAPI.getCsrfToken();
+        if (t) return t;
+      } catch {}
+    }
+    if (_cachedCsrfToken) return _cachedCsrfToken;
+    try {
+      const res = await fetch(`http://localhost:3000/api/csrf-token`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        _cachedCsrfToken = data.csrfToken || data.token;
+        return _cachedCsrfToken;
+      }
+    } catch (e) {
+      console.warn("[firm-billing] Failed to fetch CSRF token:", e);
+    }
+    return null;
+  }
+
   async function fetchInvoices() {
     const res = await fetch(`${API_BASE}/invoices`, {
+      credentials: "include",
       headers: { role: "firmadmin", "x-user-id": getCallerId() }
     });
     const json = await res.json();
@@ -51,6 +75,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function fetchPayments() {
     const res = await fetch(`${API_BASE}/payments`, {
+      credentials: "include",
       headers: { role: "firmadmin", "x-user-id": getCallerId() }
     });
     const json = await res.json();
@@ -59,6 +84,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   async function fetchClients() {
     const res = await fetch(`${API_BASE}/clients`, {
+      credentials: "include",
       headers: { role: "firmadmin", "x-user-id": getCallerId() }
     });
     if (!res.ok) throw new Error("Failed to fetch clients");
@@ -67,13 +93,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function createInvoice(payload) {
+    const csrfToken = await getCsrfToken();
+    const headers = {
+      "Content-Type": "application/json",
+      role: "firmadmin",
+      "x-user-id": getCallerId()
+    };
+    if (csrfToken) headers["x-csrf-token"] = csrfToken;
+
     const res = await fetch(`${API_BASE}/invoices`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        role: "firmadmin",
-        "x-user-id": getCallerId()
-      },
+      credentials: "include",
+      headers,
       body: JSON.stringify(payload)
     });
     const json = await res.json();
@@ -82,13 +113,18 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function updateInvoice(id, payload) {
+    const csrfToken = await getCsrfToken();
+    const headers = {
+      "Content-Type": "application/json",
+      role: "firmadmin",
+      "x-user-id": getCallerId()
+    };
+    if (csrfToken) headers["x-csrf-token"] = csrfToken;
+
     const res = await fetch(`${API_BASE}/invoices/${id}`, {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        role: "firmadmin",
-        "x-user-id": getCallerId()
-      },
+      credentials: "include",
+      headers,
       body: JSON.stringify(payload)
     });
     const json = await res.json();
@@ -97,9 +133,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   async function deleteInvoice(id) {
+    const csrfToken = await getCsrfToken();
+    const headers = {
+      role: "firmadmin",
+      "x-user-id": getCallerId()
+    };
+    if (csrfToken) headers["x-csrf-token"] = csrfToken;
+
     const res = await fetch(`${API_BASE}/invoices/${id}`, {
       method: "DELETE",
-      headers: { role: "firmadmin", "x-user-id": getCallerId() }
+      credentials: "include",
+      headers
     });
     const json = await res.json();
     if (!res.ok) throw new Error(json.message || "Delete failed");

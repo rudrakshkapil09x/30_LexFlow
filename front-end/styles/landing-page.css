@@ -1562,12 +1562,12 @@
     backdrop-filter: blur(6px);
     -webkit-backdrop-filter: blur(6px);
     z-index: 1000;
-    display: flex;
     align-items: center;
     justify-content: center;
     padding: 16px;
     /* open/close animation */
     opacity: 0;
+    pointer-events: none;
     transition: opacity 220ms ease;
 }
 
@@ -1577,6 +1577,7 @@
 
 .pay-modal-backdrop.is-open {
     opacity: 1;
+    pointer-events: auto;
 }
 
 /* Modal shell */

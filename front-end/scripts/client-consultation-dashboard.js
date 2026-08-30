@@ -127,18 +127,18 @@ document.addEventListener('DOMContentLoaded', async () => {
           <div class="card-info">
             <div class="card-badges">
               <span class="badge badge-id">${cons.id}</span>
-              <span class="badge badge-${cons.status.toLowerCase().replace(' ', '-')}">${cons.status}</span>
+              <span class="badge badge-${(cons.status || 'pending').toLowerCase().replace(/\s+/g, '-')}">${cons.status}</span>
             </div>
             <h3 class="card-lawyer-name">${cons.lawyerName || 'Awaiting Assignment'}</h3>
-            <span class="card-firm-detail">${cons.firmName} • ${typeLabel}</span>
+            <span class="card-firm-detail">${cons.firmName || 'Law Firm'} • ${typeLabel}</span>
           </div>
           <div class="card-date-block">
-            <span class="card-date">${cons.date}</span>
-            <span class="card-time">${cons.time}</span>
+            <span class="card-date">${cons.date || 'TBD'}</span>
+            <span class="card-time">${cons.time || ''}</span>
           </div>
         </div>
+        ${cons.caseDescription ? `<p class="card-desc-snippet" style="font-size:12.5px;color:#64748b;margin:0 0 14px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${cons.caseDescription}</p>` : ''}
         <div class="card-actions">
-          <button class="btn btn-primary btn-join" data-id="${cons.id}" id="btn-join-${cons.id}">Consultation</button>
           <button class="btn btn-outline btn-view-details" data-id="${cons.id}" id="btn-details-${cons.id}">View Details</button>
           <button class="btn btn-cancel-text btn-cancel" data-id="${cons.id}" id="btn-cancel-${cons.id}">Cancel</button>
         </div>`;
@@ -245,7 +245,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('det-status').innerHTML = '—';
     document.getElementById('det-desc').textContent = '—';
     document.getElementById('det-notes-row').style.display = 'none';
-    document.getElementById('det-join-btn').style.display = 'none';
     detailsOverlay.classList.add('active');
     document.body.style.overflow = 'hidden';
 
@@ -268,14 +267,6 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (cons.notes) {
         document.getElementById('det-notes').textContent = cons.notes;
         document.getElementById('det-notes-row').style.display = 'flex';
-      }
-      if (isJoinable) {
-        const joinBtn = document.getElementById('det-join-btn');
-        joinBtn.style.display = 'inline-flex';
-        joinBtn.onclick = () => {
-          sessionStorage.setItem('active_cons_id', cons.id);
-          window.location.href = 'client-join-consultation-interface.html';
-        };
       }
     } catch (err) {
       document.getElementById('det-lawyer').textContent = `Error: ${err.message}`;

@@ -4,6 +4,14 @@ let currentCase = null,
 const casesAPI = window.LexFlowAPI ? window.LexFlowAPI.cases : null;
 const tasksAPI = window.LexFlowAPI ? window.LexFlowAPI.tasks : null;
 
+const FIRM_NAMES = {
+  'firm-1': 'Sharma & Associates',
+  'firm-2': 'Khanna & Co',
+  'firm-3': 'Tech Legal Bangalore',
+  'firm-4': 'Coastal Legal Chennai',
+  'firm-5': 'Cyber Law Experts Hyderabad'
+};
+
 const currentUserData = (() => {
   try {
     return JSON.parse(localStorage.getItem('currentUser') || '{}');
@@ -42,11 +50,24 @@ async function initCaseDetails() {
     // 1. Fetch Case from API
     if (casesAPI) {
       if (caseId) {
-        currentCase = await casesAPI.getById(caseId, currentUser.role);
-      } else {
-        // Fallback to searching by CNR if ID is missing
+        try {
+          currentCase = await casesAPI.getById(caseId, currentUser.role);
+        } catch (err) {
+          console.warn("getById failed, attempting fallback:", err);
+        }
+      }
+      if (!currentCase) {
         const allCases = await casesAPI.getAll({}, currentUser.role);
-        currentCase = allCases.find(c => c.cnr === caseCnr);
+        if (caseId) currentCase = allCases.find(c => String(c.id) === String(caseId));
+        else if (caseCnr) currentCase = allCases.find(c => String(c.cnr) === String(caseCnr));
+      }
+    }
+    
+    if (!currentCase && window.LexFlowCasesStorage) {
+      if (caseId) {
+        currentCase = await window.LexFlowCasesStorage.getCaseById(caseId);
+      } else if (caseCnr) {
+        currentCase = await window.LexFlowCasesStorage.getCaseByCnr(caseCnr);
       }
     }
 
@@ -58,6 +79,23 @@ async function initCaseDetails() {
     // 2. Fetch Tasks for this case
     if (tasksAPI) {
       currentTasks = await tasksAPI.getAll({ caseId: currentCase.id }, currentUser.role);
+    }
+
+    // 3. Fetch documents from backend
+    try {
+      const docsResp = await fetch(`http://localhost:3000/documents?caseId=${currentCase.id}`, {
+        credentials: 'include',
+        headers: { role: currentUser.role }
+      });
+      if (docsResp.ok) {
+        const backendDocs = await docsResp.json();
+        currentCase.documents = Array.isArray(backendDocs) ? backendDocs : [];
+      } else {
+        currentCase.documents = [];
+      }
+    } catch (e) {
+      console.warn("Could not fetch case documents", e);
+      currentCase.documents = [];
     }
 
     renderHeader();
@@ -94,31 +132,42 @@ function renderHeader() {
   const breadcrumb = document.querySelector(".breadcrumb .current");
   if (breadcrumb) breadcrumb.textContent = `Case #${currentCase.cnr || currentCase.id}`;
   
-  caseTopTitle.textContent = currentCase.case_type || currentCase.title || "Legal Case";
-  caseTopSub.textContent = `${currentCase.case_type || "General"} | Filed: ${formatDate(currentCase.filed_date || currentCase.filedDate)}`;
-  caseTopStatus.textContent = currentCase.status || "Ongoing";
-  
-  const status = (currentCase.status || "Ongoing").toLowerCase();
-  if (status === "ongoing" || status === "active" || status === "open") {
-    caseTopStatus.style.background = "#d1fae5";
-    caseTopStatus.style.color = "#065f46";
-  } else {
-    caseTopStatus.style.background = "#fef3c7";
-    caseTopStatus.style.color = "#92400e";
+  const titleEl = document.getElementById("caseTopTitle");
+  if (titleEl) titleEl.textContent = currentCase.case_type || currentCase.title || "Legal Case";
+
+  const subEl = document.getElementById("caseTopSub");
+  if (subEl) subEl.textContent = `${currentCase.case_type || "General"} | Filed: ${formatDate(currentCase.filed_date || currentCase.filedDate)}`;
+
+  const statusEl = document.getElementById("caseTopStatus");
+  if (statusEl) {
+    statusEl.textContent = currentCase.status || "Ongoing";
+    const status = (currentCase.status || "Ongoing").toLowerCase();
+    if (status === "ongoing" || status === "active" || status === "open") {
+      statusEl.style.background = "#d1fae5";
+      statusEl.style.color = "#065f46";
+    } else {
+      statusEl.style.background = "#fef3c7";
+      statusEl.style.color = "#92400e";
+    }
   }
 }
 
 function renderOverview() {
-  const progress = currentCase.progress || 0;
-  caseProgPct.textContent = `${progress}% Completed`;
-  setTimeout(() => {
-    caseProgFill.style.width = `${progress}%`;
-  }, 100);
+  const progress = typeof currentCase.progress === 'number' ? currentCase.progress : 15;
+  const pctEl = document.getElementById("caseProgPct");
+  if (pctEl) pctEl.textContent = `${progress}% Completed`;
+
+  const fillEl = document.getElementById("caseProgFill");
+  if (fillEl) {
+    setTimeout(() => {
+      fillEl.style.width = `${progress}%`;
+    }, 100);
+  }
   renderPhases();
 }
 
 function renderPhases() {
-  const e = currentCase.progress || 0,
+  const e = typeof currentCase.progress === 'number' ? currentCase.progress : 15,
     t = document.getElementById("phaseTitle"),
     n = [
       { id: "phase-1", name: "Filing", min: 0, max: 20 },
@@ -150,28 +199,72 @@ function renderPhases() {
 }
 
 function renderTeam() {
-  const lead = currentCase.assigned_lawyer || currentCase.lawyer_name || "Lead Attorney";
-  teamContainer.innerHTML = `
+  const container = document.getElementById("teamContainer");
+  if (!container) return;
+
+  if (!Array.isArray(currentCase.team) || currentCase.team.length === 0) {
+    const lead = currentCase.assigned_lawyer || currentCase.lawyer_name || "Lead Attorney";
+    container.innerHTML = `
         <div style="display: flex; gap: 12px; align-items: center;">
             <div style="width: 32px; height: 32px; border-radius: 50%; background: #eef2ff; color: #3b5bdb; display: flex; align-items:center; justify-content:center; font-size: 11px; font-weight:700;">${lead.substring(0, 2).toUpperCase()}</div>
             <div style="display:flex; flex-direction:column;">
                 <span style="font-size:13px; font-weight:700; color:#1a1a2e;">${lead}</span>
                 <span style="font-size:11px; color:#6b7280;">Lead Attorney</span>
             </div>
-        </div>
+        </div>`;
+    return;
+  }
+  
+  const validMembers = currentCase.team.filter(e => e && typeof e === 'object' && !Array.isArray(e));
+  if (validMembers.length === 0) {
+    const lead = currentCase.assigned_lawyer || currentCase.lawyer_name || "Lead Attorney";
+    container.innerHTML = `
         <div style="display: flex; gap: 12px; align-items: center;">
-            <div style="width: 32px; height: 32px; border-radius: 50%; background: #f3f4f6; color: #6b7280; display: flex; align-items:center; justify-content:center; font-size: 11px; font-weight:700;">DC</div>
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: #eef2ff; color: #3b5bdb; display: flex; align-items:center; justify-content:center; font-size: 11px; font-weight:700;">${lead.substring(0, 2).toUpperCase()}</div>
             <div style="display:flex; flex-direction:column;">
-                <span style="font-size:13px; font-weight:700; color:#1a1a2e;">David Chen</span>
-                <span style="font-size:11px; color:#6b7280;">Paralegal</span>
+                <span style="font-size:13px; font-weight:700; color:#1a1a2e;">${lead}</span>
+                <span style="font-size:11px; color:#6b7280;">Lead Attorney</span>
+            </div>
+        </div>`;
+    return;
+  }
+
+  container.innerHTML = validMembers
+    .map((e) => {
+      const name = e.name || "Assigned Lawyer";
+      const role = e.role || "Lead Counsel";
+      const initials = name.split(' ').map(n => n[0] || '').join('').substring(0, 2).toUpperCase() || "AL";
+      const isLead = (role || '').toLowerCase().includes('lead');
+      const bg = isLead ? '#eef2ff' : '#f3f4f6';
+      const color = isLead ? '#3b5bdb' : '#4b5563';
+      
+      return `
+        <div style="display: flex; gap: 12px; align-items: center; padding: 4px 0;">
+            <div style="width: 32px; height: 32px; border-radius: 50%; background: ${bg}; color: ${color}; display: flex; align-items:center; justify-content:center; font-size: 11px; font-weight:700;">${initials}</div>
+            <div style="display:flex; flex-direction:column;">
+                <span style="font-size:13px; font-weight:700; color:#1a1a2e;">${name}</span>
+                <span style="font-size:11px; color:#6b7280;">${role}</span>
             </div>
         </div>
-    `;
+      `;
+    })
+    .join("");
 }
 
 function renderClientInfo() {
-  clientContact.textContent = currentCase.client_name || "Private Client";
-  opposingParty.textContent = currentCase.opposing_party || "Respondent";
+  const clientTypeEl = document.getElementById("clientType");
+  const contactEl = document.getElementById("clientContact");
+  const counselEl = document.getElementById("opposingParty");
+
+  if (currentCase.client) {
+    if (contactEl) contactEl.textContent = currentCase.client.contact || currentCase.client_name || "Private Client";
+    if (counselEl) counselEl.textContent = currentCase.client.opposingParty || currentCase.opposing_party || "Respondent";
+    if (clientTypeEl) clientTypeEl.textContent = currentCase.client.type || "Individual";
+  } else {
+    if (contactEl) contactEl.textContent = currentCase.client_name || "Private Client";
+    if (counselEl) counselEl.textContent = currentCase.opposing_party || "Respondent";
+    if (clientTypeEl) clientTypeEl.textContent = "Individual";
+  }
 }
 
 function renderPendingBanner() {
@@ -239,36 +332,60 @@ function renderPendingTasks() {
 }
 
 function renderTimeline() {
-  const timeline = currentCase.timeline || [];
+  const container = document.getElementById("timelineContainer");
+  if (!container) return;
+
+  let timeline = Array.isArray(currentCase.timeline) 
+    ? currentCase.timeline.filter(e => e && typeof e === 'object' && !Array.isArray(e)) 
+    : [];
+
+  if (timeline.length === 0) {
+    const firmName = currentCase.lawfirm_id ? (FIRM_NAMES[currentCase.lawfirm_id] || "Assigned Law Firm") : "Assigned Law Firm";
+    const lead = currentCase.assigned_lawyer || currentCase.lawyer_name || (Array.isArray(currentCase.team) && currentCase.team[0]?.name) || "Lead Attorney";
+    timeline = [
+      {
+        title: "Case Initialized",
+        date: formatDate(currentCase.filed_date || currentCase.created_at),
+        note: `Matter initiated from consultation and assigned to ${lead} at ${firmName}.`
+      }
+    ];
+  }
+
   if (timeline.length !== 0) {
-    timelineContainer.innerHTML = timeline
+    container.innerHTML = timeline
       .map((e, t) => `
         <div class="timeline-item ${e.grey ? "grey" : ""}" style="margin-bottom: 32px;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
                 <div>
                    <div class="t-title" style="font-size:14px; font-weight:700; color:#1a1a2e; display:flex; align-items:center; gap:8px;">
-                      ${e.title}
+                      ${e.title || "Timeline Event"}
                       <button onclick="editTimelineEvent(${t})" style="background:none;border:none;color:#9ca3af;cursor:pointer;"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg></button>
                       <button onclick="deleteTimelineEvent(${t})" style="background:none;border:none;color:#ef4444;cursor:pointer;"><svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
                    </div>
-                   <div style="font-size:12px; color:#6b7280; margin-top:4px; max-width:80%; line-height:1.5;">${e.note || "Status updated automatically."}</div>
+                   <div style="font-size:12px; color:#6b7280; margin-top:4px; max-width:80%; line-height:1.5;">${e.note || e.desc || "Status updated automatically."}</div>
                 </div>
                 <div style="text-align:right;">
-                    <span style="font-size:10px; font-weight:700; color:#cbd5e1; text-transform:uppercase;">${e.date}</span>
+                    <span style="font-size:10px; font-weight:700; color:#cbd5e1; text-transform:uppercase;">${formatDate(e.date)}</span>
                     ${e.upcoming ? '<div style="margin-top:6px;"><span class="badge-upcoming">UPCOMING</span></div>' : ""}
                 </div>
             </div>
         </div>
-    `).join("");
+      `).join("");
   } else {
-    timelineContainer.innerHTML = '<p style="color:#6b7280; font-size:13px; margin:24px;">No timeline events recorded.</p>';
+    container.innerHTML = '<p style="color:#6b7280; font-size:13px; margin:24px;">No timeline events recorded.</p>';
   }
 }
 
 function renderDocuments() {
-  const documents = currentCase.documents || [];
+  const tbody = document.getElementById("documentsTbody");
+  if (!tbody) return;
+
+  const documents = Array.isArray(currentCase.documents) 
+    ? currentCase.documents.filter(d => d && typeof d === 'object' && !Array.isArray(d))
+    : [];
+
   if (documents.length !== 0) {
-    documentsTbody.innerHTML = documents
+    tbody.innerHTML = documents
       .map((e, t) => {
         const n = (e.type || "DOC").toUpperCase();
         let i = (e.type || "pdf").toLowerCase();
@@ -278,7 +395,7 @@ function renderDocuments() {
             <td>
                 <div class="doc-name">
                     <div class="doc-icon ${i}">${n}</div>
-                    <span>${e.name}</span>
+                    <span>${e.name || "Document"}</span>
                 </div>
             </td>
             <td>${e.date || "Today"}</td>
@@ -297,7 +414,7 @@ function renderDocuments() {
         `;
       }).join("");
   } else {
-    documentsTbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 24px; color:#9ca3af;">No documents available.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding: 24px; color:#9ca3af;">No documents available.</td></tr>';
   }
 }
 
@@ -398,4 +515,8 @@ window.deleteDocument = async (index) => {
   }
 };
 
-window.addEventListener("DOMContentLoaded", initCaseDetails);
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", initCaseDetails);
+} else {
+  initCaseDetails();
+}

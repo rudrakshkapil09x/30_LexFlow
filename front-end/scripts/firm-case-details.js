@@ -29,8 +29,8 @@ async function initCaseDetails() {
     
     if (idFromUrl) {
       currentCase = await casesStorage.getCaseById(idFromUrl);
-      // Fallback: if id field is missing, search from full list
-      if (currentCase && currentCase.id === undefined) {
+      // Fallback: if id field is missing or not matched, search from full list
+      if (!currentCase || currentCase.id === undefined) {
         const allCases = await casesStorage.getCases();
         currentCase = allCases.find(c => String(c.id) === String(idFromUrl)) || currentCase;
       }
@@ -38,19 +38,37 @@ async function initCaseDetails() {
       currentCase = await casesStorage.getCaseByCnr(cnrFromUrl);
     }
 
+    // Secondary fallback: if direct query fails, fetch all cases and find match
+    if (!currentCase) {
+      const allCases = await casesStorage.getCases();
+      if (allCases && allCases.length > 0) {
+        let matchedCase = null;
+        if (idFromUrl) matchedCase = allCases.find(c => String(c.id) === String(idFromUrl));
+        if (!matchedCase && cnrFromUrl) matchedCase = allCases.find(c => String(c.cnr) === String(cnrFromUrl));
+        
+        if (!matchedCase && !idFromUrl && !cnrFromUrl) matchedCase = allCases[0];
+        
+        currentCase = matchedCase || currentCase;
+      }
+    }
+
     if (!currentCase) { 
+      console.warn("No case found, redirecting to firm-cases.html");
       window.location.href = 'firm-cases.html'; 
       return; 
     }
 
+    // Ensure safe default properties
+    currentCase.progress = typeof currentCase.progress === 'number' ? currentCase.progress : 15;
+    if (!currentCase.timeline) currentCase.timeline = [];
+    if (!currentCase.documents) currentCase.documents = [];
+
     // Fetch tasks specifically for this case
     const resolvedCaseId = currentCase.id !== undefined ? String(currentCase.id) : null;
-    console.log("[DEBUG] currentCase object:", JSON.stringify(currentCase));
-    console.log("[DEBUG] Resolved caseId for task fetch:", resolvedCaseId);
     currentTasks = resolvedCaseId
       ? (await casesStorage.getTasks({ caseId: resolvedCaseId })) || []
       : [];
-    console.log("[DEBUG] Tasks received count:", currentTasks.length);
+
     const user = casesStorage.getCurrentUser();
     const firmId = user?.firmId || null;
     const role = (user?.role || 'firmadmin').toLowerCase();
@@ -62,58 +80,75 @@ async function initCaseDetails() {
     } else {
       users = (await casesStorage.getUsers()) || [];
     }
-    
-    // Maintain legacy allData.users for modals
     allData.users = users;
 
-    if (!currentCase.timeline) currentCase.timeline = [];
-    if (!currentCase.documents) currentCase.documents = [];
+    // Fetch documents from backend for this case
+    if (resolvedCaseId) {
+      try {
+        const docsResp = await fetch(`http://localhost:3000/documents?caseId=${resolvedCaseId}`, {
+          credentials: 'include',
+          headers: { role }
+        });
+        if (docsResp.ok) {
+          const backendDocs = await docsResp.json();
+          currentCase.documents = Array.isArray(backendDocs) ? backendDocs : [];
+        } else {
+          currentCase.documents = [];
+        }
+      } catch (e) {
+        console.warn("Could not fetch case documents from backend", e);
+        currentCase.documents = [];
+      }
+    }
+
+    // Resolve client details
     if (!currentCase.client || !currentCase.client.contact || currentCase.client.contact === "Data Pending") {
+      let clientName = currentCase.client?.contact || "Client Contact";
+      let clientRole = currentCase.client?.type || "Individual";
+      let clientEmail = currentCase.client?.email || "N/A";
+      let clientPhone = currentCase.client?.phone || "N/A";
+
       if (currentCase.client_id && window.LexFlowAPI) {
         try {
           const clientUser = await window.LexFlowAPI.users.getById(currentCase.client_id, role);
           if (clientUser) {
-            currentCase.client = {
-              contact: clientUser.fullName || clientUser.name || "N/A",
-              type: clientUser.role ? clientUser.role.charAt(0).toUpperCase() + clientUser.role.slice(1) : "Client",
-              opposingParty: currentCase.client?.opposingParty || "Pending",
-              email: clientUser.email || "N/A",
-              phone: clientUser.phoneNumber || "N/A"
-            };
+            clientName = clientUser.fullName || clientUser.name || clientName;
+            clientRole = clientUser.role ? clientUser.role.charAt(0).toUpperCase() + clientUser.role.slice(1) : clientRole;
+            clientEmail = clientUser.email || clientEmail;
+            clientPhone = clientUser.phoneNumber || clientUser.phone || clientPhone;
           }
         } catch (err) {
-          console.error("Failed to fetch client details:", err);
+          console.warn("Could not fetch client details by id:", err);
         }
       }
-      
-      if (!currentCase.client) {
-        currentCase.client = {
-          contact: "Data Pending",
-          type: "Individual",
-          opposingParty: "None/Unknown",
-          email: "N/A",
-          phone: "N/A"
-        };
-      }
+
+      currentCase.client = {
+        contact: clientName,
+        type: clientRole,
+        opposingParty: currentCase.client?.opposingParty || "To be determined",
+        email: clientEmail,
+        phone: clientPhone,
+      };
     }
     
+    // Resolve assigned team
     if (!currentCase.team || currentCase.team.length === 0) {
       const lawyer = users.find(u => String(u.id) === String(currentCase.lawyer_id)) || { fullName: "Assigned Lawyer" };
       currentCase.team = [
         {
           id: currentCase.lawyer_id || "ADM001",
-          name: lawyer.fullName || lawyer.name,
+          name: lawyer.fullName || lawyer.name || "Lead Counsel",
           role: "Lead Counsel",
         },
       ];
     }
 
-    (renderHeader(),
-      renderOverview(),
-      renderTeam(),
-      renderClientInfo(),
-      renderPendingTasks(),
-      renderDocuments());
+    renderHeader();
+    renderOverview();
+    renderTeam();
+    renderClientInfo();
+    renderPendingTasks();
+    renderDocuments();
   } catch (e) {
     console.error("Error loading case details:", e);
   }
@@ -132,23 +167,41 @@ function getStatusIcon(e) {
     : '\n            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">\n                <path d="M14 2H6C4.89543 2 4 2.89543 4 4V20C4 21.1046 4.89543 22 6 22H18C19.1046 22 20 21.1046 20 20V8L14 2Z" fill="#FEF3C7" stroke="#F59E0B" stroke-width="2" stroke-linejoin="round"/>\n                <path d="M14 2V8H20" stroke="#F59E0B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>\n                <circle cx="17" cy="17" r="5" fill="#F59E0B"/>\n                <path d="M15.5 15.5L18.5 18.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>\n                <path d="M18.5 15.5L15.5 18.5" stroke="white" stroke-width="1.5" stroke-linecap="round"/>\n            </svg>';
 }
 function renderHeader() {
-  ((document.querySelector(".breadcrumb .current").textContent =
-    `Case #${currentCase.cnr}`),
-    (caseTopTitle.textContent = currentCase.case_type || 'N/A'),
-    (caseTopSub.textContent = `${currentCase.case_type} | Opened: ${formatDate(currentCase.filed_date)}`),
-    (caseTopStatus.textContent = currentCase.status),
-    "Ongoing" === currentCase.status || "Active" === currentCase.status
-      ? ((caseTopStatus.style.background = "#d1fae5"),
-        (caseTopStatus.style.color = "#065f46"))
-      : ((caseTopStatus.style.background = "#fef3c7"),
-        (caseTopStatus.style.color = "#92400e")));
+  if (!currentCase) return;
+  const breadcrumbEl = document.querySelector(".breadcrumb .current");
+  if (breadcrumbEl) breadcrumbEl.textContent = `Case #${currentCase.cnr || ''}`;
+  
+  const titleEl = document.getElementById("caseTopTitle");
+  if (titleEl) titleEl.textContent = currentCase.case_type || 'N/A';
+  
+  const subEl = document.getElementById("caseTopSub");
+  if (subEl) subEl.textContent = `${currentCase.case_type || 'Case'} | Opened: ${formatDate(currentCase.filed_date || currentCase.created_at)}`;
+  
+  const statusEl = document.getElementById("caseTopStatus");
+  if (statusEl) {
+    statusEl.textContent = currentCase.status || 'Active';
+    if ("Ongoing" === currentCase.status || "Active" === currentCase.status) {
+      statusEl.style.background = "#d1fae5";
+      statusEl.style.color = "#065f46";
+    } else {
+      statusEl.style.background = "#fef3c7";
+      statusEl.style.color = "#92400e";
+    }
+  }
 }
 function renderOverview() {
-  ((caseProgPct.textContent = `${currentCase.progress}% Completed`),
+  if (!currentCase) return;
+  const prog = typeof currentCase.progress === 'number' ? currentCase.progress : 15;
+  const pctEl = document.getElementById("caseProgPct");
+  if (pctEl) pctEl.textContent = `${prog}% Completed`;
+  
+  const fillEl = document.getElementById("caseProgFill");
+  if (fillEl) {
     setTimeout(() => {
-      caseProgFill.style.width = `${currentCase.progress}%`;
-    }, 100),
-    renderPhases());
+      fillEl.style.width = `${prog}%`;
+    }, 100);
+  }
+  renderPhases();
 }
 function renderPhases() {
   const e = currentCase.progress || 0,
@@ -180,15 +233,26 @@ function renderPhases() {
   }
 }
 function renderTeam() {
-  if (!currentCase.team || currentCase.team.length === 0) {
-    teamContainer.innerHTML = '<p style="color:#6b7280; font-size:12px; padding:8px;">No team members assigned.</p>';
+  const container = document.getElementById("teamContainer");
+  if (!container) return;
+
+  if (!Array.isArray(currentCase.team) || currentCase.team.length === 0) {
+    container.innerHTML = '<p style="color:#6b7280; font-size:12px; padding:8px;">No team members assigned.</p>';
     return;
   }
   
-  teamContainer.innerHTML = currentCase.team
+  const validMembers = currentCase.team.filter(e => e && typeof e === 'object' && !Array.isArray(e));
+  if (validMembers.length === 0) {
+    container.innerHTML = '<p style="color:#6b7280; font-size:12px; padding:8px;">No team members assigned.</p>';
+    return;
+  }
+
+  container.innerHTML = validMembers
     .map((e) => {
-      const initials = (e.name || "AL").split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-      const isLead = e.role.toLowerCase().includes('lead');
+      const name = e.name || "Assigned Lawyer";
+      const role = e.role || "Lead Counsel";
+      const initials = name.split(' ').map(n => n[0] || '').join('').substring(0, 2).toUpperCase() || "AL";
+      const isLead = (role || '').toLowerCase().includes('lead');
       const bg = isLead ? '#eef2ff' : '#f3f4f6';
       const color = isLead ? '#3b5bdb' : '#4b5563';
       
@@ -196,26 +260,35 @@ function renderTeam() {
         <div style="display: flex; gap: 14px; align-items: center; padding: 4px 0;">
             <div style="width: 38px; height: 38px; border-radius: 10px; background: ${bg}; color: ${color}; display: flex; align-items:center; justify-content:center; font-size: 13px; font-weight:700; border: 1px solid rgba(0,0,0,0.05);">${initials}</div>
             <div style="display:flex; flex-direction:column; gap: 2px;">
-                <span style="font-size:14px; font-weight:700; color:#1a1a2e;">${e.name}</span>
-                <span style="font-size:11px; font-weight:600; color:#6b7280; text-transform: uppercase; letter-spacing: 0.3px;">${e.role}</span>
+                <span style="font-size:14px; font-weight:700; color:#1a1a2e;">${name}</span>
+                <span style="font-size:11px; font-weight:600; color:#6b7280; text-transform: uppercase; letter-spacing: 0.3px;">${role}</span>
             </div>
         </div>
       `;
     })
     .join("");
 }
+
 function renderClientInfo() {
-  clientContact.textContent = currentCase.client.contact;
+  const contactEl = document.getElementById("clientContact");
   const typeEl = document.getElementById("clientType");
-  if (typeEl) typeEl.textContent = currentCase.client.type;
-  
   const emailEl = document.getElementById("clientEmail");
-  if (emailEl) emailEl.textContent = currentCase.client.email || "N/A";
-  
   const phoneEl = document.getElementById("clientPhone");
-  if (phoneEl) phoneEl.textContent = currentCase.client.phone || "N/A";
-  
-  opposingParty.textContent = currentCase.client.opposingParty;
+  const opposingEl = document.getElementById("opposingParty");
+
+  if (currentCase.client) {
+    if (contactEl) contactEl.textContent = currentCase.client.contact || "Private Client";
+    if (typeEl) typeEl.textContent = currentCase.client.type || "Individual";
+    if (emailEl) emailEl.textContent = currentCase.client.email || "N/A";
+    if (phoneEl) phoneEl.textContent = currentCase.client.phone || "N/A";
+    if (opposingEl) opposingEl.textContent = currentCase.client.opposingParty || "To be determined";
+  } else {
+    if (contactEl) contactEl.textContent = currentCase.client_name || "Private Client";
+    if (typeEl) typeEl.textContent = "Individual";
+    if (emailEl) emailEl.textContent = "N/A";
+    if (phoneEl) phoneEl.textContent = "N/A";
+    if (opposingEl) opposingEl.textContent = currentCase.opposing_party || "To be determined";
+  }
 }
 function renderPendingBanner() {
   const e = currentTasks.filter((e) => "Pending" === e.status),
@@ -251,7 +324,8 @@ function renderPendingTasks() {
         window.markTaskAsDone ||
           (window.markTaskAsDone = async (id) => {
             try {
-              const role = (currentUserData.role || 'firmAdmin').toLowerCase();
+              const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+              const role = (currentUser.role || 'firmAdmin').toLowerCase();
               await LexFlowAPI.tasks.update(id, { status: "Completed" }, role);
               await initCaseDetails(); // Refresh UI
             } catch (err) {
@@ -263,20 +337,44 @@ function renderPendingTasks() {
 }
 
 function renderDocuments() {
-  (currentCase.documents || (currentCase.documents = []),
-    0 !== currentCase.documents.length
-      ? (documentsTbody.innerHTML = currentCase.documents
-          .map((e, t) => {
-            let n = e.type ? e.type.toUpperCase() : "DOC",
-              a = e.type ? e.type.toLowerCase() : "pdf";
-            return (
-              "pdf" !== a && "zip" !== a && (a = "pdf"),
-              `\n        <tr>\n            <td>\n                <div class="doc-name">\n                    <div class="doc-icon ${a}">${n}</div>\n                    <span>${e.name}</span>\n                </div>\n            </td>\n            <td>${e.date || "Today"}</td>\n            <td>\n                <span class="badge-${"Reviewing" === e.status ? "reviewing" : "verified"}">\n                    ${e.status || "Verified"}\n                </span>\n            </td>\n            <td>\n                <div style="display:flex; gap: 8px;">\n                    <a href="../Client/case_management_client/legalheir.pdf" download="legalheir.pdf" class="download-btn" title="Download"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11"/></svg></a>\n                    <button class="download-btn" title="Delete Document" onclick="deleteDocument(${t})" style="color:#ef4444;"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>\n                </div>\n            </td>\n        </tr>\n        `
-            );
-          })
-          .join(""))
-      : (documentsTbody.innerHTML =
-          '<tr><td colspan="4" style="text-align:center; padding: 24px; color:#9ca3af;">No documents available.</td></tr>'));
+  currentCase.documents = currentCase.documents || [];
+  if (!documentsTbody) return;
+
+  if (currentCase.documents.length !== 0) {
+    documentsTbody.innerHTML = currentCase.documents
+      .map((e, t) => {
+        let n = e.type ? e.type.toUpperCase() : "DOC",
+          a = e.type ? e.type.toLowerCase() : "pdf";
+        if (a !== "pdf" && a !== "zip") a = "pdf";
+        const downloadHref = e.url || `http://localhost:3000/data/docs/${e.name || 'document.pdf'}`;
+        return `
+        <tr>
+            <td>
+                <div class="doc-name">
+                    <div class="doc-icon ${a}">${n}</div>
+                    <span>${e.name || 'Document'}</span>
+                </div>
+            </td>
+            <td>${e.date || "Today"}</td>
+            <td>
+                <span class="badge-${"Reviewing" === e.status ? "reviewing" : "verified"}">
+                    ${e.status || "Verified"}
+                </span>
+            </td>
+            <td>
+                <div style="display:flex; gap: 8px;">
+                    <a href="${downloadHref}" download="${e.name || 'document.pdf'}" class="download-btn" title="Download"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 4v11"/></svg></a>
+                    <button class="download-btn" title="Delete Document" onclick="deleteDocument('${e.id || t}')" style="color:#ef4444;"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button>
+                </div>
+            </td>
+        </tr>
+        `;
+      })
+      .join("");
+  } else {
+    documentsTbody.innerHTML =
+      '<tr><td colspan="4" style="text-align:center; padding: 24px; color:#9ca3af;">No documents available.</td></tr>';
+  }
 }
 async function saveData() {
   if (!currentCase || !currentCase.id) return;
@@ -310,225 +408,323 @@ function renderEditTeamList() {
     )
     .join("");
 }
-((window.openModal = function (e) {
-  document.getElementById(e).classList.add("active");
-}),
-  (window.closeModal = function (e) {
-    const t = document.getElementById(e);
-    (LexValidation.clearAllErrors(t), t.classList.remove("active"));
-  }),
-  (window.exportCSV = function () {
-    let e = "data:text/csv;charset=utf-8,";
-    ((e += "Case ID,Title,Court,Status,Opened\n"),
-      (e += `"${currentCase.cnr}","${currentCase.case_type}","${currentCase.brief_description}","${currentCase.status}","${currentCase.filed_date}"`));
-    var t = encodeURI(e),
-      n = document.createElement("a");
-    (n.setAttribute("href", t),
-      n.setAttribute("download", `case_export_${currentCase.cnr}.csv`),
-      document.body.appendChild(n),
-      n.click(),
-      document.body.removeChild(n));
-  }),
-  (window.openEditCaseModal = function () {
-    ((document.getElementById("editCaseTitle").value = currentCase.case_type || ''),
-      (document.getElementById("editCaseStatus").value = currentCase.status || 'Active'),
-      (document.getElementById("editCaseProgress").value =
-        currentCase.progress || 0),
-      openModal("editCaseModal"));
-  }),
-  (window.saveCaseDetailsModal = async function () {
-    const e = document.getElementById("editCaseTitle"),
-      t = document.getElementById("editCaseProgress"),
-      n = document.getElementById("editCaseModal");
-    LexValidation.clearAllErrors(n);
-    const a = [
-      {
-        input: e,
-        validator: (e) => LexValidation.validateRequired(e, "Case title"),
-      },
-      { input: t, validator: LexValidation.validateProgress },
-    ];
-    if (!LexValidation.validateForm(a))
-      return (
-        n.querySelector(".modal-content").classList.add("form-shake"),
-        void setTimeout(
-          () =>
-            n.querySelector(".modal-content").classList.remove("form-shake"),
-          450,
-        )
-      );
-    ((currentCase.case_type = e.value.trim()),
-      (currentCase.status = document.getElementById("editCaseStatus").value),
-      (currentCase.progress = parseInt(t.value, 10)),
-      await saveData(),
-      closeModal("editCaseModal"));
-  }),
-  (window.addDocumentPrompt = function () {
-    ((document.getElementById("docClientName").value = (currentCase.case_type || "")
-      .split("vs.")[0]
-      .trim()),
-      (document.getElementById("docCaseCnr").value = currentCase.cnr),
-      (document.getElementById("docDescription").value = ""),
-      (document.getElementById("selectedFileName").innerHTML =
-        'Drag & Drop Files Here or <span style="color:#3b5bdb; text-decoration:underline;">Click to Upload</span>'),
-      openModal("documentModal"));
-  }),
-  (window.saveDocumentModal = async function () {
-    const e = document.getElementById("docTypeSelect").value;
-    let t = "New_Document_" + e + "." + e.toLowerCase();
-    const n = document.getElementById("selectedFileName").innerText;
-    (n.includes("Selected:") && (t = n.replace("Selected:", "").trim()),
-      currentCase.documents || (currentCase.documents = []),
-      currentCase.documents.push({
-        name: t,
-        type: e,
-        date: new Date().toLocaleDateString(void 0, {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
-        status: "Reviewing",
-      }),
-      await saveData(),
-      closeModal("documentModal"));
-  }),
-  (window.deleteDocument = async function (e) {
-    if (!currentCase || !Array.isArray(currentCase.documents) || e < 0 || e >= currentCase.documents.length) return;
-    confirm("Are you sure you want to delete this document?") &&
-      (currentCase.documents.splice(e, 1), await saveData());
-  }),
+window.openModal = function (e) {
+  const el = document.getElementById(e);
+  if (el) el.classList.add("active");
+};
 
-  (window.openEditClientModal = function () {
-    ((document.getElementById("editClientContact").value =
-      currentCase.client.contact),
-      (document.getElementById("editClientEmail").value =
-        currentCase.client.email || ""),
-      (document.getElementById("editClientPhone").value =
-        currentCase.client.phone || ""),
-      (document.getElementById("editClientType").value =
-        currentCase.client.type),
-      (document.getElementById("editOpposingParty").value =
-        currentCase.client.opposingParty),
-      openModal("editClientModal"));
-  }),
-  (window.saveClientDetails = async function () {
-    const e = document.getElementById("editClientContact"),
-      t = document.getElementById("editClientModal");
+window.closeModal = function (e) {
+  const t = document.getElementById(e);
+  if (t) {
     LexValidation.clearAllErrors(t);
-    const n = [
-      {
-        input: e,
-        validator: (e) => LexValidation.validateRequired(e, "Primary contact"),
-      },
-    ];
-    if (!LexValidation.validateForm(n))
-      return (
-        t.querySelector(".modal-content").classList.add("form-shake"),
-        void setTimeout(
-          () =>
-            t.querySelector(".modal-content").classList.remove("form-shake"),
-          450,
-        )
-      );
-    ((currentCase.client = {
-      contact: e.value.trim(),
-      email: document.getElementById("editClientEmail").value.trim(),
-      phone: document.getElementById("editClientPhone").value.trim(),
-      type: document.getElementById("editClientType").value,
-      opposingParty: document.getElementById("editOpposingParty").value.trim(),
-    }),
-      await saveData(),
-      closeModal("editClientModal"));
-  }),
-  (window.openEditTeamModal = function () {
-    renderEditTeamList();
-    ((document.getElementById("addTeamMemberSelect").innerHTML = allData.users
+    t.classList.remove("active");
+  }
+};
+
+window.exportCSV = function () {
+  if (!currentCase) return;
+  let e = "data:text/csv;charset=utf-8,";
+  e += "Case ID,Title,Court,Status,Opened\n";
+  e += `"${currentCase.cnr || ''}","${currentCase.case_type || ''}","${currentCase.brief_description || ''}","${currentCase.status || ''}","${currentCase.filed_date || ''}"`;
+  const t = encodeURI(e);
+  const n = document.createElement("a");
+  n.setAttribute("href", t);
+  n.setAttribute("download", `case_export_${currentCase.cnr || 'details'}.csv`);
+  document.body.appendChild(n);
+  n.click();
+  document.body.removeChild(n);
+};
+
+window.openEditCaseModal = function () {
+  if (!currentCase) return;
+  const titleEl = document.getElementById("editCaseTitle");
+  const statusEl = document.getElementById("editCaseStatus");
+  const progEl = document.getElementById("editCaseProgress");
+  if (titleEl) titleEl.value = currentCase.case_type || '';
+  if (statusEl) statusEl.value = currentCase.status || 'Active';
+  if (progEl) progEl.value = currentCase.progress || 0;
+  window.openModal("editCaseModal");
+};
+
+window.saveCaseDetailsModal = async function () {
+  const e = document.getElementById("editCaseTitle");
+  const t = document.getElementById("editCaseProgress");
+  const n = document.getElementById("editCaseModal");
+  LexValidation.clearAllErrors(n);
+  const a = [
+    {
+      input: e,
+      validator: (e) => LexValidation.validateRequired(e, "Case title"),
+    },
+    { input: t, validator: LexValidation.validateProgress },
+  ];
+  if (!LexValidation.validateForm(a)) {
+    n.querySelector(".modal-content").classList.add("form-shake");
+    setTimeout(() => n.querySelector(".modal-content").classList.remove("form-shake"), 450);
+    return;
+  }
+  currentCase.case_type = e.value.trim();
+  currentCase.status = document.getElementById("editCaseStatus").value;
+  currentCase.progress = parseInt(t.value, 10);
+  await saveData();
+  window.closeModal("editCaseModal");
+};
+
+window.addDocumentPrompt = function () {
+  if (!currentCase) return;
+  const nameEl = document.getElementById("docClientName");
+  const cnrEl = document.getElementById("docCaseCnr");
+  const descEl = document.getElementById("docDescription");
+  const selEl = document.getElementById("selectedFileName");
+  if (nameEl) nameEl.value = (currentCase.case_type || "").split("vs.")[0].trim();
+  if (cnrEl) cnrEl.value = currentCase.cnr || '';
+  if (descEl) descEl.value = "";
+  if (selEl) selEl.innerHTML = 'Drag & Drop Files Here or <span style="color:#3b5bdb; text-decoration:underline;">Click to Upload</span>';
+  window.openModal("documentModal");
+};
+
+window.saveDocumentModal = async function () {
+  const fileInput = document.getElementById("hiddenFileInput");
+  const typeSelect = document.getElementById("docTypeSelect");
+  const typeVal = typeSelect ? typeSelect.value : "PDF";
+
+  if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+    alert("Please select a file to upload.");
+    return;
+  }
+
+  const selectedFile = fileInput.files[0];
+  if (selectedFile.size > 10 * 1024 * 1024) {
+    alert("File size exceeds 10MB limit.");
+    return;
+  }
+
+  const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+  const role = (currentUser.role || 'firmadmin').toLowerCase();
+  const uploaderEmail = currentUser.email || 'unknown@lexflow.in';
+  const caseId = String(currentCase.id);
+
+  const formData = new FormData();
+  formData.append('name', selectedFile.name);
+  formData.append('caseId', caseId);
+  formData.append('type', typeVal.toUpperCase());
+  formData.append('fileType', (selectedFile.name.split('.').pop() || 'BIN').toUpperCase().slice(0, 3));
+  formData.append('access', 'PRIVATE');
+  formData.append('version', '1');
+  formData.append('file', selectedFile);
+
+  try {
+    const headers = {
+      "role": role,
+      "x-user-email": uploaderEmail
+    };
+    if (window.LexFlowAPI && window.LexFlowAPI.getCsrfToken) {
+      const token = await window.LexFlowAPI.getCsrfToken();
+      if (token) headers['x-csrf-token'] = token;
+    }
+
+    const resp = await fetch("http://localhost:3000/documents", {
+      credentials: 'include',
+      method: "POST",
+      headers,
+      body: formData
+    });
+
+    if (!resp.ok) {
+      throw new Error('Upload failed: ' + resp.status);
+    }
+    
+    const createdDoc = await resp.json();
+    currentCase.documents = currentCase.documents || [];
+    currentCase.documents.unshift(createdDoc);
+    renderDocuments();
+    window.closeModal("documentModal");
+  } catch (err) {
+    console.error(err);
+    alert("Failed to upload document: " + err.message);
+  }
+};
+
+window.deleteDocument = async function (docId) {
+  if (!docId && docId !== 0) return;
+  if (!confirm("Are you sure you want to delete this document?")) return;
+  try {
+    const currentUser = JSON.parse(localStorage.getItem('currentUser') || '{}');
+    const role = (currentUser.role || 'firmadmin').toLowerCase();
+    
+    const headers = { "role": role };
+    if (window.LexFlowAPI && window.LexFlowAPI.getCsrfToken) {
+      const token = await window.LexFlowAPI.getCsrfToken();
+      if (token) headers['x-csrf-token'] = token;
+    }
+
+    const resp = await fetch(`http://localhost:3000/documents/${docId}`, {
+      credentials: 'include',
+      method: "DELETE",
+      headers
+    });
+    if (resp.ok) {
+      currentCase.documents = (currentCase.documents || []).filter(d => String(d.id) !== String(docId));
+      renderDocuments();
+    } else {
+      if (!isNaN(Number(docId))) {
+        currentCase.documents.splice(Number(docId), 1);
+        renderDocuments();
+      } else {
+        alert("Failed to delete document.");
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Delete failed: " + err.message);
+  }
+};
+
+window.openEditClientModal = function () {
+  if (!currentCase || !currentCase.client) return;
+  const cEl = document.getElementById("editClientContact");
+  const eEl = document.getElementById("editClientEmail");
+  const pEl = document.getElementById("editClientPhone");
+  const tEl = document.getElementById("editClientType");
+  const oEl = document.getElementById("editOpposingParty");
+  if (cEl) cEl.value = currentCase.client.contact || '';
+  if (eEl) eEl.value = currentCase.client.email || "";
+  if (pEl) pEl.value = currentCase.client.phone || "";
+  if (tEl) tEl.value = currentCase.client.type || "Individual";
+  if (oEl) oEl.value = currentCase.client.opposingParty || "";
+  window.openModal("editClientModal");
+};
+
+window.saveClientDetails = async function () {
+  const e = document.getElementById("editClientContact");
+  const t = document.getElementById("editClientModal");
+  LexValidation.clearAllErrors(t);
+  const n = [
+    {
+      input: e,
+      validator: (e) => LexValidation.validateRequired(e, "Primary contact"),
+    },
+  ];
+  if (!LexValidation.validateForm(n)) {
+    t.querySelector(".modal-content").classList.add("form-shake");
+    setTimeout(() => t.querySelector(".modal-content").classList.remove("form-shake"), 450);
+    return;
+  }
+  currentCase.client = {
+    contact: e.value.trim(),
+    email: document.getElementById("editClientEmail").value.trim(),
+    phone: document.getElementById("editClientPhone").value.trim(),
+    type: document.getElementById("editClientType").value,
+    opposingParty: document.getElementById("editOpposingParty").value.trim(),
+  };
+  await saveData();
+  window.closeModal("editClientModal");
+};
+
+window.openEditTeamModal = function () {
+  renderEditTeamList();
+  const selEl = document.getElementById("addTeamMemberSelect");
+  if (selEl) {
+    selEl.innerHTML = (allData.users || [])
       .filter((e) => {
         const r = (e.role || '').toLowerCase();
         return r === "lawyer" || r === "intern";
       })
       .map((e) => `<option value="${e.id}">${e.fullName || e.name}</option>`)
-      .join("")),
-      openModal("editTeamModal"));
-  }),
-  (window.addTeamMember = async function () {
-    const e = document.getElementById("addTeamMemberSelect"),
-      roleInput = document.getElementById("addTeamMemberRole"),
-      t = roleInput.value.trim() || "Legal Counsel",
-      n = allData.users.find((t) => t.id === e.value);
-    
-    if (n) {
-      if (!currentCase.team) currentCase.team = [];
-      currentCase.team.push({ 
-        id: n.id, 
-        name: n.fullName || n.name, 
-        role: t 
-      });
-      roleInput.value = ""; // Clear input
-      await saveData();
-      renderEditTeamList();
-    }
-  }),
-  (window.removeTeamMember = async function (e) {
-    (currentCase.team.splice(e, 1), await saveData(), renderEditTeamList());
-  }),
-  (window.openAddTaskModal = function () {
-    ((document.getElementById("newTaskAssignee").innerHTML = allData.users
+      .join("");
+  }
+  window.openModal("editTeamModal");
+};
+
+window.addTeamMember = async function () {
+  const e = document.getElementById("addTeamMemberSelect");
+  const roleInput = document.getElementById("addTeamMemberRole");
+  const t = roleInput ? roleInput.value.trim() || "Legal Counsel" : "Legal Counsel";
+  const n = (allData.users || []).find((u) => u.id === e.value);
+  
+  if (n) {
+    if (!currentCase.team) currentCase.team = [];
+    currentCase.team.push({ 
+      id: n.id, 
+      name: n.fullName || n.name, 
+      role: t 
+    });
+    if (roleInput) roleInput.value = "";
+    await saveData();
+    renderEditTeamList();
+  }
+};
+
+window.removeTeamMember = async function (e) {
+  if (currentCase && currentCase.team) {
+    currentCase.team.splice(e, 1);
+    await saveData();
+    renderEditTeamList();
+  }
+};
+
+window.openAddTaskModal = function () {
+  const sel = document.getElementById("newTaskAssignee");
+  if (sel) {
+    sel.innerHTML = (allData.users || [])
       .filter(u => {
         const r = (u.role || '').toLowerCase();
         return r === 'lawyer' || r === 'intern';
       })
       .map((e) => `<option value="${e.fullName || e.name}">${e.fullName || e.name}</option>`)
-      .join("")),
-      openModal("addTaskModal"));
-  }),
-  (window.saveNewTask = async function () {
-    const e = document.getElementById("newTaskName"),
-      t = document.getElementById("newTaskDueDate"),
-      n = document.getElementById("addTaskModal");
-    LexValidation.clearAllErrors(n);
-    const a = [
-      {
-        input: e,
-        validator: (e) => LexValidation.validateRequired(e, "Task name"),
-      },
-      { input: t, validator: (e) => LexValidation.validateDate(e, "Due date") },
-    ];
-    if (!LexValidation.validateForm(a))
-      return (
-        n.querySelector(".modal-content").classList.add("form-shake"),
-        void setTimeout(
-          () =>
-            n.querySelector(".modal-content").classList.remove("form-shake"),
-          450,
-        )
-      );
-    const o = document.getElementById("newTaskAssignee").value;
-    const i = document.getElementById("newTaskPriority").value;
-    let currentUserData = {};
-    try { currentUserData = JSON.parse(localStorage.getItem('currentUser') || '{}'); } catch (e) {}
+      .join("");
+  }
+  window.openModal("addTaskModal");
+};
 
-    const payload = {
-        name: e.value.trim(),
-        caseTitle: currentCase.case_type || 'N/A',
-        assignedUser: o,
-        priority: i,
-        dueDate: t.value,
-        status: "Pending",
-        caseId: String(currentCase.id),
-        caseCnr: currentCase.cnr,
-        firmId: currentUserData.firmId || 'firm-1',
-        description: ""
-    };
+window.saveNewTask = async function () {
+  const e = document.getElementById("newTaskName");
+  const t = document.getElementById("newTaskDueDate");
+  const n = document.getElementById("addTaskModal");
+  LexValidation.clearAllErrors(n);
+  const a = [
+    {
+      input: e,
+      validator: (e) => LexValidation.validateRequired(e, "Task name"),
+    },
+    { input: t, validator: (e) => LexValidation.validateDate(e, "Due date") },
+  ];
+  if (!LexValidation.validateForm(a)) {
+    n.querySelector(".modal-content").classList.add("form-shake");
+    setTimeout(() => n.querySelector(".modal-content").classList.remove("form-shake"), 450);
+    return;
+  }
+  const o = document.getElementById("newTaskAssignee").value;
+  const i = document.getElementById("newTaskPriority").value;
+  let currentUserData = {};
+  try { currentUserData = JSON.parse(localStorage.getItem('currentUser') || '{}'); } catch (e) {}
 
-    try {
-        const role = (currentUserData.role || 'firmAdmin').toLowerCase();
-        await LexFlowAPI.tasks.create(payload, role);
-        closeModal("addTaskModal");
-        await initCaseDetails(); // Refresh everything
-    } catch (err) {
-        console.error("Failed to create task:", err);
-        alert("Failed to create task. Is the server running?");
-    }
-  }),
-  window.addEventListener("DOMContentLoaded", initCaseDetails));
+  const payload = {
+      name: e.value.trim(),
+      caseTitle: currentCase.case_type || 'N/A',
+      assignedUser: o,
+      priority: i,
+      dueDate: t.value,
+      status: "Pending",
+      caseId: String(currentCase.id),
+      caseCnr: currentCase.cnr,
+      firmId: currentUserData.firmId || 'firm-1',
+      description: ""
+  };
+
+  try {
+      const role = (currentUserData.role || 'firmAdmin').toLowerCase();
+      await LexFlowAPI.tasks.create(payload, role);
+      window.closeModal("addTaskModal");
+      await initCaseDetails();
+  } catch (err) {
+      console.error("Failed to create task:", err);
+      alert("Failed to create task. Is the server running?");
+  }
+};
+
+if (document.readyState === "loading") {
+  window.addEventListener("DOMContentLoaded", initCaseDetails);
+} else {
+  initCaseDetails();
+}

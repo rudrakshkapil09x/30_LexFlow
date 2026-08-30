@@ -104,6 +104,22 @@
     });
   }
 
+  const registerLawFirmBtn = document.getElementById('register-law-firm-btn');
+  if (registerLawFirmBtn) {
+    registerLawFirmBtn.addEventListener('click', function () {
+      window.location.href = getOnboardingPath();
+    });
+  }
+
+  const newsletterForm = document.querySelector('.newsletter-form');
+  if (newsletterForm) {
+    newsletterForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      window.alert('Thanks for subscribing to the LexFlow newsletter!');
+      newsletterForm.reset();
+    });
+  }
+
   /* ================================================================
      2. LANGUAGE DROPDOWN
      ================================================================ */

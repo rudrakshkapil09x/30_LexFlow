@@ -143,15 +143,15 @@
 
         const casesLink = document.getElementById('nav-cases');
         if (casesLink) {
-          // If role is lawyer, we could optionally point to a different cases list, 
-          // but for now firm-cases.html seems intended for staff.
-          casesLink.href = 'firm-cases.html';
+          casesLink.href = userRole === 'lawyer' ? 'lawyer-cases.html' : 'firm-cases.html';
         }
 
         const billingLink = document.getElementById('nav-billing');
-        if (billingLink) billingLink.href = 'firm-billing.html';
+        if (billingLink) {
+          billingLink.href = userRole === 'lawyer' ? 'lawyer-billing.html' : 'firm-billing.html';
+        }
 
-        // Show and link User Management for firmAdmin only (or decide if lawyers can see it)
+        // Show and link User Management for firmAdmin only
         const userMgmtLink = document.getElementById('nav-usermanagement');
         if (userMgmtLink) {
           if (userRole === 'firmAdmin') {

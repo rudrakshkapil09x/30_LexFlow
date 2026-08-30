@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <script src="scripts/csrf-interceptor.js"></script>
@@ -261,7 +261,18 @@
     </div>
 </div>
 
+<script src="../scripts/storage.js"></script>
+<script src="../scripts/storage-service.js"></script>
+<script src="../scripts/auth.js"></script>
+<script>
+    const currentUser = AuthService.requireAuth(['lawyer', 'firmAdmin', 'firmadmin']);
+    if (!currentUser) {
+        throw new Error('Access denied');
+    }
+</script>
 <script src="../scripts/sidebar.js"></script>
+<script src="../scripts/api.js"></script>
+<script src="../scripts/billing-storage.js"></script>
 <script src="../scripts/firm-billing.js"></script>
 <script src="../assets/icons.js"></script>
 </body>

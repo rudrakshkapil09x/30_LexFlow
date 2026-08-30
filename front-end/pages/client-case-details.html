@@ -1,7 +1,6 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <script src="scripts/csrf-interceptor.js"></script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>LexFlow  Case Details</title>
@@ -15,7 +14,7 @@
 <div class="breadcrumb">
 <a href="./client-cases.html">Cases</a>
 <span class="sep">/</span>
-<span class="current">CNR: DLND010001232023</span>
+<span class="current">CNR: Loading...</span>
 </div>
 <button class="bell-btn">
 <span class="svg-icon-placeholder" data-icon="icon_11"></span>
@@ -24,7 +23,7 @@
 <div class="content">
 <div class="page-header">
 <h1>Case Details</h1>
-<p>Property Dispute vs. Urban Developers Ltd.</p>
+<p>Loading case information...</p>
 </div>
 <div class="grid-top">
 <div class="left-col">
@@ -34,19 +33,19 @@
 General Information
 </h2>
 <div class="info-grid">
-<div class="info-item"><label>CNR Number</label><div class="value">DLND010001232023</div></div>
-<div class="info-item"><label>Case Type</label><div class="value">Civil & Real Estate</div></div>
-<div class="info-item"><label>Court</label><div class="value">High Court of Delhi - Room 402</div></div>
-<div class="info-item"><label>Assigned Lawyer</label><div class="value link" onclick="window.location.href='./client-case-advocate-profile.html'">Adv. Sarah Mitchell</div></div>
-<div class="info-item"><label>Filed Date</label><div class="value">October 14, 2023</div></div>
-<div class="info-item"><label>Status</label><div class="value"><span class="badge-status">Ongoing Hearing Stage</span></div></div>
+<div class="info-item"><label>CNR Number</label><div class="value">Loading...</div></div>
+<div class="info-item"><label>Case Type</label><div class="value">Loading...</div></div>
+<div class="info-item"><label>Law Firm</label><div class="value">Loading...</div></div>
+<div class="info-item"><label>Assigned Lawyer</label><div class="value">Loading...</div></div>
+<div class="info-item"><label>Filed Date</label><div class="value">Loading...</div></div>
+<div class="info-item"><label>Status</label><div class="value"><span class="badge-status">Loading...</span></div></div>
 </div>
 </div>
 <div class="hearing-banner">
-<div class="hearing-date"><div class="month">NOV</div><div class="day">24</div></div>
+<div class="hearing-date"><div class="month">--</div><div class="day">--</div></div>
 <div class="hearing-info">
 <div class="title">Next Hearing Scheduled</div>
-<div class="sub">10:30 AM &bull; Final Cross-examination</div>
+<div class="sub">Checking court schedule...</div>
 </div>
 <div class="cal-icon">
 <span class="svg-icon-placeholder" data-icon="icon_20"></span>
@@ -55,8 +54,8 @@ General Information
 </div>
 <div class="right-col">
 <div class="progress-card">
-<div class="prog-label">Case Progress <span class="pct">65% Complete</span></div>
-<div class="progress-bar"><div class="fill" data-progress="65"></div></div>
+<div class="prog-label">Case Progress <span class="pct">0% Complete</span></div>
+<div class="progress-bar"><div class="fill" style="width:0%"></div></div>
 </div>
 <div class="timeline-card card">
 <h2>
@@ -64,26 +63,6 @@ General Information
 Timeline
 </h2>
 <div class="timeline">
-<div class="timeline-item">
-<div class="t-title">Final Arguments</div>
-<div class="t-date">Dec 12, 2023 (Expected)</div>
-<span class="badge-upcoming">UPCOMING</span>
-</div>
-<div class="timeline-item">
-<div class="t-title">Court Hearing #3</div>
-<div class="t-date">Nov 04, 2023</div>
-<div class="t-note">Respondent cross-examination completed. Judge requested original deed copies.</div>
-</div>
-<div class="timeline-item">
-<div class="t-title">Evidence Submission</div>
-<div class="t-date">Oct 28, 2023</div>
-<div class="t-note">All property documents and bank statements submitted to the registry.</div>
-</div>
-<div class="timeline-item grey">
-<div class="t-title">Case Filed</div>
-<div class="t-date">Oct 14, 2023</div>
-<div class="t-note">Initial petition filed under Civil Suit section 45B.</div>
-</div>
 </div>
 </div>
 </div>
@@ -100,29 +79,14 @@ Related Documents
 </tr>
 </thead>
 <tbody>
-<tr>
-<td><div class="doc-name"><div class="doc-icon pdf">PDF</div>Initial_Petition_Signed.pdf</div></td>
-<td>Oct 14, 2023</td>
-<td><span class="badge-verified">Verified</span></td>
-<td><button class="download-btn"><span class="svg-icon-placeholder" data-icon="icon_23"></span></button></td>
-</tr>
-<tr>
-<td><div class="doc-name"><div class="doc-icon zip">ZIP</div>Property_Site_Photos.zip</div></td>
-<td>Oct 28, 2023</td>
-<td><span class="badge-verified">Verified</span></td>
-<td><button class="download-btn"><span class="svg-icon-placeholder" data-icon="icon_23"></span></button></td>
-</tr>
-<tr>
-<td><div class="doc-name"><div class="doc-icon pdf">PDF</div>Evidence_Affidavit_V2.pdf</div></td>
-<td>Nov 02, 2023</td>
-<td><span class="badge-reviewing">Reviewing</span></td>
-<td><button class="download-btn"><span class="svg-icon-placeholder" data-icon="icon_23"></span></button></td>
-</tr>
 </tbody>
 </table>
 </div>
 </div>
 </div>
+<script src="../scripts/storage-service.js"></script>
+<script src="../scripts/auth.js"></script>
+<script>AuthService.requireAuth(['client']);</script>
 <script src="../scripts/sidebar.js"></script>
 <script src="../scripts/cases-storage.js?v=3"></script>
 <script src="../scripts/api.js"></script>

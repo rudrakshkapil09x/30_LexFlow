@@ -20,6 +20,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const statActiveEl    = document.querySelector('#stat-active .stat-card-value');
   const statCompletedEl = document.querySelector('#stat-completed .stat-card-value');
   let _consultations = [];
+  let _lawyers = [];
 
 
   // ── Firm context ───────────────────────────────────────────────────────────
@@ -148,12 +149,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         <div class="request-actions">
           <div class="assign-dropdown">
             <select id="assign-lawyer-${req.id}" class="assign-select">
-              <option value="">Assign Lawyer</option>
+              <option value="">Assign Lawyer...</option>
               ${(lawyers || []).map(l => `<option value="${l.id}|${l.name}">${l.name}</option>`).join('')}
             </select>
           </div>
-          <button class="btn btn-accept" data-id="${req.id}" id="btn-accept-${req.id}">Accept</button>
-          <button class="btn btn-reject" data-id="${req.id}" id="btn-reject-${req.id}">Reject</button>
+          <div class="request-buttons-row">
+            <button class="btn btn-accept" data-id="${req.id}" id="btn-accept-${req.id}">Accept</button>
+            <button class="btn btn-reject" data-id="${req.id}" id="btn-reject-${req.id}">Reject</button>
+          </div>
         </div>`;
       requestsGrid.appendChild(card);
     });
@@ -199,7 +202,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         <td><span class="status-badge status-${cons.status.toLowerCase().replace(' ', '-')}">${cons.status}</span></td>
         <td>
           <div class="table-actions">
-            <button class="btn btn-sm btn-primary btn-join" data-id="${cons.id}" id="btn-join-${cons.id}">Join Call</button>
             ${isActive ? `<button class="btn btn-sm btn-convert" data-id="${cons.id}" id="btn-convert-${cons.id}">Convert to Case</button>` : ''}
             <button class="btn btn-sm btn-outline btn-cancel" data-id="${cons.id}" id="btn-cancel-${cons.id}">Cancel</button>
           </div>
@@ -282,24 +284,69 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btn) { btn.disabled = true; btn.textContent = 'Converting…'; }
 
     try {
+      // Resolve lawyer name
+      let lawyerName = cons.lawyerName;
+      if (cons.lawyerId && !lawyerName && _lawyers && _lawyers.length > 0) {
+        const found = _lawyers.find(l => String(l.id) === String(cons.lawyerId));
+        if (found) lawyerName = found.name;
+      }
+
+      // Fetch client info if missing
+      let clientContact = cons.clientName || 'Client Contact';
+      let clientEmail = 'client@lexflow.in';
+      let clientPhone = 'N/A';
+      if (cons.clientId) {
+        try {
+          const clientUser = await LexFlowAPI.users.getById(cons.clientId, userRole);
+          if (clientUser) {
+            clientContact = clientUser.fullName || clientUser.name || clientContact;
+            clientEmail = clientUser.email || clientEmail;
+            clientPhone = clientUser.phoneNumber || clientUser.phone || clientPhone;
+          }
+        } catch (e) {}
+      }
+
       const caseDto = {
         consultation_id: consId,
-        lawfirm_id: firmId,
-        lawyer_id: cons.lawyerId,
-        client_id: cons.clientId,
+        lawfirm_id: firmId || cons.firmId || 'firm-1',
+        lawyer_id: cons.lawyerId || undefined,
+        client_id: cons.clientId || undefined,
         cnr: `${Math.floor(100000 + Math.random() * 900000)}`,
-        case_type: caseName || cons.type || 'Consultation',
+        case_type: caseName || cons.type || 'General Case',
         brief_description: cons.caseDescription || 'Converted from consultation',
         status: 'Active',
-        filed_date: new Date().toISOString().split('T')[0]
+        filed_date: new Date().toISOString().split('T')[0],
+        progress: 15,
+        timeline: [
+          {
+            title: 'Consultation Converted to Case',
+            date: new Date().toISOString().split('T')[0],
+            desc: `Case initiated from consultation #${consId}`
+          }
+        ],
+        documents: [],
+        team: cons.lawyerId ? [
+          {
+            id: cons.lawyerId,
+            name: lawyerName || 'Assigned Lawyer',
+            role: 'Lead Counsel'
+          }
+        ] : [],
+        client: {
+          contact: clientContact,
+          type: 'Individual',
+          opposingParty: 'To be determined',
+          email: clientEmail,
+          phone: clientPhone
+        }
       };
 
       await LexFlowAPI.cases.create(caseDto, userRole);
       
-      // Update consultation status to COMPLETED (or similar) to indicate it's done
+      // Update consultation status to COMPLETED to indicate it's done
       await LexFlowAPI.consultations.update(consId, { status: 'COMPLETED' }, userRole);
 
-      showToast(`Successfully converted to Case ${caseDto.cnr}!`, 'success');
+      showToast(`Successfully converted to Case #${caseDto.cnr}!`, 'success');
       await refreshAll();
     } catch (err) {
       console.error('[FirmDashboard] Conversion failed:', err);
@@ -311,17 +358,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // ── Global click delegation ────────────────────────────────────────────────
   document.addEventListener('click', async (e) => {
-    const btnJoin   = e.target.closest('.btn-join');
     const btnAccept = e.target.closest('.btn-accept');
     const btnReject = e.target.closest('.btn-reject');
     const btnCancel = e.target.closest('.btn-cancel');
     const btnConvert = e.target.closest('.btn-convert');
 
-    if (btnJoin) {
-      const id = btnJoin.dataset.id;
-      sessionStorage.setItem('active_cons_id', id);
-      window.location.href = 'lawyer-join-consultation-interface.html';
-    }
     if (btnAccept) await handleAccept(btnAccept.dataset.id);
     if (btnReject) {
       if (confirm('Reject this consultation request?')) {
@@ -369,6 +410,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         name: l.fullName,
         email: l.email
       }));
+      _lawyers = lawyers;
 
       renderIncomingRequests(pending, lawyers);
       renderActiveConsultations(active);

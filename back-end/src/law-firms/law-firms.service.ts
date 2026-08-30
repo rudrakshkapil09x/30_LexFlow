@@ -51,46 +51,111 @@ export class LawFirmsService implements OnModuleInit {
   // ── Seed ──────────────────────────────────────────────────────────────────
   private seedData(): void {
     // ─── Hydrate real firms from UsersService ─────────────────────────────
-    // Pull every firm registered via onboarding and add it to the searchable list.
-    // This guarantees firm-1 (Sharma & Associates) always appears in search results.
     const realFirms = this.usersService.getAllFirms();
-    const realFirmEntries: LawFirm[] = realFirms.map((f) => ({
-      id: f.id,                   // e.g. 'firm-1' — MUST match firmId used in consultations
-      name: f.name,               // 'Sharma & Associates'
-      subtitle: `Corporate & Civil Law • ${f.city}, ${f.state}`,
-      description:
-        `${f.name} is a full-service law firm based in ${f.city}, ${f.state}. ` +
-        `Offering expert legal counsel across corporate, civil, and litigation matters. ` +
-        `Verified and registered on the LexFlow platform.`,
-      location: f.city.toLowerCase().replace(/\s+/g, '-'),
-      locationLabel: `${f.city}, ${f.state}`,
-      practiceArea: 'corporate',
-      availability: 'AVAILABLE',
-      rating: 4.8,
-      reviews: 97,
-      price: 180,
-      experience: '10+ Years',
-      bio:
-        `${f.name} is a leading law firm headquartered at ${f.street}, ${f.city}. ` +
-        `The firm provides comprehensive legal services to individuals and businesses, ` +
-        `covering corporate advisory, dispute resolution, contract law, and compliance. ` +
-        `All consultations can be booked directly through the LexFlow platform. ` +
-        `Contact: ${f.email || f.primaryEmail || ''} | ${f.phone || ''}`,
-      practiceAreas: [
-        'Corporate Law', 'Contract Disputes', 'Commercial Litigation',
-        'Compliance & Regulatory', 'Civil Law',
+
+    const firmPracticeAreasMap: Record<string, string[]> = {
+      'firm-1': [
+        'Corporate Law',
+        'Civil Litigation',
+        'Commercial Arbitration',
+        'Contract Disputes',
+        'Constitutional Law',
       ],
-      languages: ['English (Fluent)', 'Hindi (Fluent)'],
-      education: [
-        { school: 'National Law School of India', degree: 'B.A. LL.B. (Hons)' },
-        { school: 'Bar Council of India', degree: 'Enrolled Advocate' },
+      'firm-2': [
+        'Intellectual Property',
+        'Patent Prosecution',
+        'Trademark Disputes',
+        'Copyright Law',
+        'Trade Secrets',
       ],
-      avatarColor: 'indigo',
-      email:   f.primaryEmail || f.email,
-      phone:   f.phone,
-      address: `${f.street}, ${f.city}, ${f.state} - ${f.pinCode}`,
-      website: f.website,
-    }));
+      'firm-3': [
+        'Technology Law',
+        'IT & SaaS Contracts',
+        'Data Privacy (GDPR/DPDP)',
+        'Startup Advisory',
+        'AI Compliance',
+      ],
+      'firm-4': [
+        'Criminal Defense',
+        'Maritime Law',
+        'White-Collar Crime',
+        'Bail & Trial Advocacy',
+        'Admiralty Disputes',
+      ],
+      'firm-5': [
+        'Cyber Law',
+        'Data Breach Incident Response',
+        'Digital Evidence Forensics',
+        'Cybercrime Defense',
+        'IT Security Compliance',
+      ],
+    };
+
+    const avatarColorMap: Record<string, string> = {
+      'firm-1': 'blue',
+      'firm-2': 'green',
+      'firm-3': 'indigo',
+      'firm-4': 'orange',
+      'firm-5': 'teal',
+    };
+
+    const priceMap: Record<string, number> = {
+      'firm-1': 180,
+      'firm-2': 150,
+      'firm-3': 140,
+      'firm-4': 120,
+      'firm-5': 200,
+    };
+
+    const practiceAreaCodeMap: Record<string, string> = {
+      'firm-1': 'corporate',
+      'firm-2': 'ip',
+      'firm-3': 'technology',
+      'firm-4': 'criminal',
+      'firm-5': 'cyber',
+    };
+
+    const realFirmEntries: LawFirm[] = realFirms.map((f) => {
+      const pAreas =
+        firmPracticeAreasMap[f.id] ||
+        (f.practiceArea ? [f.practiceArea] : ['Corporate Law', 'Civil Law']);
+      const pCode =
+        practiceAreaCodeMap[f.id] ||
+        (f.practiceArea ? f.practiceArea.toLowerCase().replace(/\s+/g, '-') : 'corporate');
+      const avatarCol = avatarColorMap[f.id] || 'blue';
+      const hourlyPrice = priceMap[f.id] || (f.price && f.price < 1000 ? f.price : 150);
+
+      return {
+        id: f.id,
+        name: f.name,
+        subtitle: f.subtitle || `${pAreas[0]} • ${f.city}, ${f.state}`,
+        description:
+          f.description ||
+          `${f.name} is a leading legal practice in ${f.city}, ${f.state}. Providing expert counsel in ${pAreas.slice(0, 3).join(', ')}.`,
+        location: (f.location || f.city).toLowerCase().replace(/\s+/g, '-'),
+        locationLabel: `${f.city}, ${f.state}`,
+        practiceArea: pCode,
+        availability: (f.availability || 'AVAILABLE').toUpperCase(),
+        rating: f.rating || 4.8,
+        reviews: f.reviews || 85,
+        price: hourlyPrice,
+        experience: f.experience || '10+ Years',
+        bio:
+          f.bio ||
+          `${f.name} is a premier firm based at ${f.street}, ${f.city}. Specializing in ${pAreas.join(', ')}. Contact: ${f.email || f.primaryEmail || ''} | ${f.phone || ''}`,
+        practiceAreas: pAreas,
+        languages: ['English (Fluent)', 'Hindi (Fluent)'],
+        education: [
+          { school: 'National Law School of India', degree: 'B.A. LL.B. (Hons)' },
+          { school: 'Bar Council of India', degree: 'Enrolled Advocate' },
+        ],
+        avatarColor: avatarCol,
+        email: f.primaryEmail || f.email,
+        phone: f.phone,
+        address: `${f.street}, ${f.city}, ${f.state} - ${f.pinCode}`,
+        website: f.website,
+      };
+    });
 
     this.firms = realFirmEntries;
   }
@@ -113,12 +178,27 @@ export class LawFirmsService implements OnModuleInit {
 
     if (filters.location) {
       const loc = filters.location.toLowerCase();
-      results = results.filter((f) => f.location === loc);
+      results = results.filter(
+        (f) =>
+          f.location.toLowerCase().includes(loc) ||
+          f.locationLabel.toLowerCase().includes(loc),
+      );
     }
 
     if (filters.practiceArea) {
       const pa = filters.practiceArea.toLowerCase();
-      results = results.filter((f) => f.practiceArea === pa);
+      results = results.filter(
+        (f) =>
+          f.practiceArea.toLowerCase() === pa ||
+          (pa === 'ip' &&
+            (f.practiceArea.toLowerCase().includes('ip') ||
+              f.practiceArea.toLowerCase().includes('intellectual'))) ||
+          (pa === 'corporate' &&
+            (f.practiceArea.toLowerCase().includes('corporate') ||
+              f.practiceArea.toLowerCase().includes('civil'))) ||
+          f.practiceAreas.some((p) => p.toLowerCase().includes(pa)) ||
+          f.subtitle.toLowerCase().includes(pa),
+      );
     }
 
     switch (filters.sortBy) {

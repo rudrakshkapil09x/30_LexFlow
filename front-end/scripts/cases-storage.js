@@ -77,7 +77,15 @@ window.LexFlowCasesStorage = (function () {
       ...(options.headers || {}),
     };
 
-    const res = await fetch(url, { ...options, headers });
+    const method = (options.method || 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') {
+      if (window.LexFlowAPI && window.LexFlowAPI.getCsrfToken) {
+        const token = await window.LexFlowAPI.getCsrfToken();
+        if (token) headers['x-csrf-token'] = token;
+      }
+    }
+
+    const res = await fetch(url, { credentials: 'include', ...options, headers });
 
     if (!res.ok) {
       let msg = `HTTP ${res.status}`;

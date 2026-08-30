@@ -1,5 +1,23 @@
 (function() {
     'use strict';
+    
+    // Automatically add CSRF token to all fetch calls in this file
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+      if (args[1]) {
+        args[1].credentials = 'include';
+        if (args[1].method && args[1].method.toUpperCase() !== 'GET' && window.LexFlowAPI && window.LexFlowAPI.getCsrfToken) {
+          const token = await window.LexFlowAPI.getCsrfToken();
+          if (token) {
+            args[1].headers = args[1].headers || {};
+            args[1].headers['x-csrf-token'] = token;
+          }
+        }
+      } else if (args[0] && typeof args[0] === 'string') {
+        args[1] = { credentials: 'include' };
+      }
+      return originalFetch.apply(this, args);
+    };
 
     const API_BASE = 'http://localhost:3000';
     const ITEMS_PER_PAGE = 8;

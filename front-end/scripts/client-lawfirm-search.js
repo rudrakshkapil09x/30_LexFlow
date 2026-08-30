@@ -193,12 +193,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       pill.classList.add('active-pill');
       // Map pill text to a practiceArea value
       const PILL_MAP = {
-        'Corporate': 'corporate', 'Family': 'family',
-        'Criminal': 'criminal', 'Property': 'civil',
-        'IP': 'ip', 'Immigration': 'immigration',
+        'Corporate': 'corporate',
+        'IP': 'ip',
+        'Technology': 'technology',
+        'Criminal': 'criminal',
+        'Cyber': 'cyber',
+        'Family': 'family',
+        'Property': 'civil',
+        'Civil': 'corporate',
+        'All': '',
       };
       const pillText = pill.textContent.trim().split(' ')[0];
-      if (practiceSelect) practiceSelect.value = PILL_MAP[pillText] || '';
+      if (practiceSelect) practiceSelect.value = PILL_MAP[pillText] ?? '';
       loadFirms();
     });
   });

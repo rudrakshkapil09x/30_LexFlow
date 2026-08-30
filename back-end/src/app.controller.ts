@@ -19,9 +19,11 @@ export class AppController {
    */
   @Get('api/csrf-token')
   getCsrfToken(@Res() res: Response) {
+    const token = (res.locals.csrfToken as string) ?? null;
     return res.status(200).json({
       success: true,
-      csrfToken: (res.locals.csrfToken as string) ?? null,
+      csrfToken: token,
+      token: token,
     });
   }
 }

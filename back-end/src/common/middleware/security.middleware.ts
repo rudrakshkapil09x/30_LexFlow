@@ -22,12 +22,16 @@ import * as crypto from 'crypto';
 export class SecurityMiddleware implements NestMiddleware {
   private static readonly COOKIE_NAME = 'csrf_token';
   private static readonly HEADER_NAME = 'x-csrf-token';
+  private static readonly validTokens = new Set<string>();
 
   private static readonly MUTATING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
   /** Paths that MUST NOT require a CSRF token (public / auth endpoints) */
   private static readonly EXEMPT = [
     '/users/login',
+    '/users/firm-onboarding',
+    '/users/client-onboarding',
+    '/users', // If they POST to /users directly for client creation
     '/api/csrf-token',
     '/api/docs',
     '/data/',
@@ -42,19 +46,19 @@ export class SecurityMiddleware implements NestMiddleware {
     );
 
     if (!isMutating || isExempt) {
-      // On safe / exempt requests: ensure cookie exists so frontend can read it
-      if (!req.cookies?.[SecurityMiddleware.COOKIE_NAME]) {
-        const token = crypto.randomBytes(32).toString('hex');
+      // On safe / exempt requests: ensure token exists
+      let token = req.cookies?.[SecurityMiddleware.COOKIE_NAME] as string | undefined;
+      if (!token) {
+        token = crypto.randomBytes(32).toString('hex');
         res.cookie(SecurityMiddleware.COOKIE_NAME, token, {
-          httpOnly: false,   // Frontend JS MUST read this cookie
-          sameSite: 'strict',
+          httpOnly: false,
+          sameSite: 'lax',
           secure: process.env.NODE_ENV === 'production',
           maxAge: 60 * 60 * 1000, // 1 hour
         });
-        res.locals.csrfToken = token;
-      } else {
-        res.locals.csrfToken = req.cookies[SecurityMiddleware.COOKIE_NAME] as string;
       }
+      SecurityMiddleware.validTokens.add(token);
+      res.locals.csrfToken = token;
       return next();
     }
 
@@ -64,19 +68,26 @@ export class SecurityMiddleware implements NestMiddleware {
     const headerToken =
       (req.headers[SecurityMiddleware.HEADER_NAME] as string | undefined);
 
-    if (!cookieToken || !headerToken) {
+    if (!headerToken) {
       throw new ForbiddenException(
         'CSRF token missing. Fetch a token from GET /api/csrf-token and include it as X-CSRF-Token header.',
       );
     }
 
-    // Constant-time comparison to prevent timing attacks
-    const a = Buffer.from(cookieToken);
-    const b = Buffer.from(headerToken);
-    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) {
-      throw new ForbiddenException('CSRF token invalid or expired.');
+    if (cookieToken) {
+      // Constant-time comparison if cookie is present
+      const a = Buffer.from(cookieToken);
+      const b = Buffer.from(headerToken);
+      if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+        return next();
+      }
     }
 
-    next();
+    // Fallback: Check if headerToken was issued by server
+    if (SecurityMiddleware.validTokens.has(headerToken)) {
+      return next();
+    }
+
+    throw new ForbiddenException('CSRF token invalid or expired.');
   }
 }

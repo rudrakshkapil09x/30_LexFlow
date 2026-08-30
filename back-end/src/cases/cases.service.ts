@@ -17,39 +17,58 @@ export class CasesService {
     this.cases = [
       {
         id: this.idCounter++,
-        cnr: '100001',
-        case_type: 'Criminal',
-        brief_description: 'State vs John Doe - Narcotics case',
+        cnr: 'DL-2024-CR-100001',
+        case_type: 'Criminal Defense',
+        brief_description: 'State vs John Doe - Narcotics investigation & trial defense',
         status: 'Active',
         filed_date: '2024-01-15',
         created_at: now,
         lawfirm_id: 'firm-1',
         client_id: 'user-2', // Client Alice
-        lawyer_id: 'user-3', // Lawyer Bob
+        lawyer_id: 'user-3', // Lawyer Bob (Sharma & Associates)
+        progress: 65,
+        team: [{ id: 'user-3', name: 'Bob', role: 'Lead Defense Counsel' }],
+        timeline: [
+          { title: 'Bail Application Granted', date: '2024-01-20', desc: 'Court approved conditional bail.' },
+          { title: 'Evidence Examination', date: '2024-02-14', desc: 'Cross-examination of prime witness completed.' },
+          { title: 'Trial Hearing Scheduled', date: '2024-06-12', upcoming: true, desc: 'Final arguments in session room 4.' }
+        ]
       },
       {
         id: this.idCounter++,
-        cnr: '100002',
-        case_type: 'Civil',
-        brief_description: 'Property dispute - Sharma vs Gupta',
-        status: 'Active',
+        cnr: 'MH-2024-CV-100002',
+        case_type: 'Civil & Property',
+        brief_description: 'Property partition dispute - Sharma vs Gupta real estate title',
+        status: 'Ongoing',
         filed_date: '2024-02-20',
         created_at: now,
-        lawfirm_id: 'firm-1',
+        lawfirm_id: 'firm-2',
         client_id: 'user-2', // Client Alice
-        lawyer_id: 'user-3', // Lawyer Bob
+        lawyer_id: 'user-13', // Lawyer Rahul (Khanna & Co)
+        progress: 40,
+        team: [{ id: 'user-13', name: 'Rahul', role: 'Senior Civil Advocate' }],
+        timeline: [
+          { title: 'Partition Suit Filed', date: '2024-02-20', desc: 'Initial plaint registered under CPC.' },
+          { title: 'Court Commissioner Survey', date: '2024-03-25', desc: 'Site demarcation survey report submitted.' }
+        ]
       },
       {
         id: this.idCounter++,
-        cnr: '100003',
-        case_type: 'Corporate',
-        brief_description: 'Contract breach - TechCorp vs SoftSystems',
-        status: 'Pending',
+        cnr: 'KA-2024-CP-100003',
+        case_type: 'Corporate & IP',
+        brief_description: 'Contract breach & software IP licensing dispute - TechCorp vs SoftSystems',
+        status: 'Under Review',
         filed_date: '2024-03-05',
         created_at: now,
-        lawfirm_id: 'firm-1',
+        lawfirm_id: 'firm-3',
         client_id: 'user-2', // Client Alice
-        lawyer_id: 'user-3', // Lawyer Bob
+        lawyer_id: 'user-9', // Lawyer David (Tech Legal Bangalore)
+        progress: 25,
+        team: [{ id: 'user-9', name: 'David', role: 'Corporate IP Counsel' }],
+        timeline: [
+          { title: 'Legal Notice Served', date: '2024-03-05', desc: 'Section 138 & breach notice delivered.' },
+          { title: 'Arbitration Invocation', date: '2024-04-10', desc: 'Sole arbitrator appointment in progress.' }
+        ]
       },
     ];
   }

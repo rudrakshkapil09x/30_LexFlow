@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <script src="scripts/csrf-interceptor.js"></script>
@@ -38,7 +38,11 @@
 </table>
 </div>
 </main>
+<script src="../scripts/storage-service.js"></script>
+<script src="../scripts/auth.js"></script>
+<script>AuthService.requireAuth(['client']);</script>
 <script src="../scripts/sidebar.js"></script>
+<script src="../scripts/api.js"></script>
 <script src="../scripts/billing-storage.js"></script>
 <script src="../scripts/client-billing-transactions.js"></script>
 <script src="../assets/icons.js"></script>
